@@ -30,6 +30,24 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    href={route('patients.index')}
+                                    active={route().current('patients.index')}
+                                >
+                                    Patients
+                                </NavLink>
+                                <NavLink
+                                    href={route('providers.index')}
+                                    active={route().current('providers.index')}
+                                >
+                                    Providers
+                                </NavLink>
+                                <NavLink
+                                    href={route('appointments.index')}
+                                    active={route().current('appointments.index')}
+                                >
+                                    Appointments
+                                </NavLink>
                             </div>
                         </div>
 
@@ -133,6 +151,24 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('dashboard')}
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('patients.index')}
+                            active={route().current('patients.index')}
+                        >
+                            Patients
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('providers.index')}
+                            active={route().current('providers.index')}
+                        >
+                            Providers
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('appointments.index')}
+                            active={route().current('appointments.index')}
+                        >
+                            Appointments
                         </ResponsiveNavLink>
                     </div>
 
