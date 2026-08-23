@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -25,6 +26,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('providers', ProviderController::class)
+        ->except(['create', 'edit', 'show']);
+
+    Route::resource('patients', PatientController::class)
         ->except(['create', 'edit', 'show']);
 });
 
