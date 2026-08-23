@@ -5,18 +5,12 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
-});
+// Internal-only app — the homepage has no public content of its own.
+// Send everyone straight to the dashboard; the `auth` middleware there
+// redirects a guest on to /login.
+Route::redirect('/', '/dashboard');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
