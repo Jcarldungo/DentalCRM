@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\ProfileController;
@@ -30,6 +31,11 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('patients', PatientController::class)
         ->except(['create', 'edit', 'show']);
+
+    Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
+    Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
+    Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
+    Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update'])->name('appointments.update');
 });
 
 require __DIR__.'/auth.php';
