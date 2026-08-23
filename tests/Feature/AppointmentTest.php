@@ -1,5 +1,4 @@
 <?php
-// tests/Feature/AppointmentTest.php
 
 namespace Tests\Feature;
 
@@ -143,5 +142,57 @@ class AppointmentTest extends TestCase
             'id' => $inRange->id,
             'title' => 'Maria Cruz — Checkup',
         ]);
+    }
+
+    public function test_events_feed_preserves_stored_wall_clock_time_with_no_offset_shift(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $provider = Provider::factory()->create();
+
+        $appointment = Appointment::factory()->create([
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-05 09:00:00',
+            'end_time' => '2026-09-05 09:30:00',
+        ]);
+
+        $response = $this->getJson(route('appointments.events', [
+            'start' => '2026-09-01',
+            'end' => '2026-09-30',
+        ]));
+
+        $response->assertOk();
+        $event = collect($response->json())->firstWhere('id', $appointment->id);
+
+        $this->assertNotNull($event);
+        $this->assertStringStartsWith('2026-09-05T09:00:00', $event['start']);
+        $this->assertStringStartsWith('2026-09-05T09:30:00', $event['end']);
+    }
+
+    public function test_guest_cannot_view_appointment_events(): void
+    {
+        $response = $this->get(route('appointments.events', [
+            'start' => '2026-09-01',
+            'end' => '2026-09-30',
+        ]));
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_guest_cannot_create_appointment(): void
+    {
+        $patient = Patient::factory()->create();
+        $provider = Provider::factory()->create();
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 09:30:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertRedirect(route('login'));
     }
 }

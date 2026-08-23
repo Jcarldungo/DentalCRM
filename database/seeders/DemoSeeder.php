@@ -1,5 +1,4 @@
 <?php
-// database/seeders/DemoSeeder.php
 
 namespace Database\Seeders;
 
@@ -46,11 +45,13 @@ class DemoSeeder extends Seeder
 
         // A handful more patients and upcoming appointments to populate the calendar.
         Patient::factory()->count(8)->create()->each(function (Patient $patient) use ($providers) {
+            $day = Carbon::now()->addDays(rand(1, 14))->setTime(rand(9, 16), 0);
+
             Appointment::factory()->create([
                 'patient_id' => $patient->id,
                 'provider_id' => $providers->random()->id,
-                'start_time' => Carbon::now()->addDays(rand(1, 14))->setTime(rand(9, 16), 0),
-                'end_time' => Carbon::now()->addDays(rand(1, 14))->setTime(rand(9, 16), 30),
+                'start_time' => $day,
+                'end_time' => (clone $day)->addMinutes(30),
             ]);
         });
     }

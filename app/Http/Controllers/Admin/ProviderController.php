@@ -46,6 +46,10 @@ class ProviderController extends Controller
 
     public function destroy(Provider $provider): RedirectResponse
     {
+        if ($provider->appointments()->exists()) {
+            return back()->withErrors(['provider' => 'This provider has appointments and cannot be deleted. Mark them inactive instead.']);
+        }
+
         $provider->delete();
 
         return back();

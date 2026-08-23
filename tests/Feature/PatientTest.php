@@ -1,5 +1,4 @@
 <?php
-// tests/Feature/PatientTest.php
 
 namespace Tests\Feature;
 
@@ -72,6 +71,25 @@ class PatientTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('patients', ['id' => $patient->id, 'phone' => '09170000000']);
+    }
+
+    public function test_updating_patient_does_not_null_date_of_birth(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create(['date_of_birth' => '1990-05-14']);
+
+        $response = $this->put(route('patients.update', $patient), [
+            'first_name' => $patient->first_name,
+            'last_name' => $patient->last_name,
+            'phone' => '09170000001',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('patients', [
+            'id' => $patient->id,
+            'phone' => '09170000001',
+            'date_of_birth' => '1990-05-14',
+        ]);
     }
 
     public function test_patient_can_be_deleted(): void

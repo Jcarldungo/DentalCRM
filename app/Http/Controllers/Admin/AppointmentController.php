@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Provider;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,10 @@ class AppointmentController extends Controller
         ]);
 
         $events = Appointment::with(['patient', 'provider'])
-            ->whereBetween('start_time', [$validated['start'], $validated['end']])
+            ->whereBetween('start_time', [
+                Carbon::parse($validated['start']),
+                Carbon::parse($validated['end']),
+            ])
             ->get()
             ->map(fn (Appointment $appointment) => [
                 'id' => $appointment->id,

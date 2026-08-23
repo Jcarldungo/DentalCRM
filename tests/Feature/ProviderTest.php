@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Appointment;
 use App\Models\Provider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,6 +72,18 @@ class ProviderTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseMissing('providers', ['id' => $provider->id]);
+    }
+
+    public function test_provider_with_appointments_cannot_be_deleted(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->create(['provider_id' => $provider->id]);
+
+        $response = $this->delete(route('providers.destroy', $provider));
+
+        $response->assertSessionHasErrors('provider');
+        $this->assertDatabaseHas('providers', ['id' => $provider->id]);
     }
 
     public function test_guest_cannot_list_providers(): void
