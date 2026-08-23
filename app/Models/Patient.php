@@ -36,4 +36,33 @@ class Patient extends Model
     {
         return trim("{$this->first_name} {$this->last_name}");
     }
+
+    public static function dueForRecall(?\Carbon\Carbon $asOf = null): \Illuminate\Support\Collection
+    {
+        $asOf = $asOf ?? now();
+
+        return static::with(['appointments' => function ($query) {
+                $query->where('type', 'cleaning')
+                    ->where('status', 'completed')
+                    ->orderByDesc('start_time');
+            }])
+            ->get()
+            ->map(function (self $patient) {
+                $lastCleaning = $patient->appointments->first();
+
+                if (! $lastCleaning) {
+                    return null;
+                }
+
+                $interval = $patient->recall_interval_months ?? 6;
+                $patient->recall_last_cleaning_at = $lastCleaning->start_time;
+                $patient->recall_due_date = $lastCleaning->start_time->copy()->addMonths($interval);
+
+                return $patient;
+            })
+            ->filter()
+            ->filter(fn (self $patient) => $patient->recall_due_date->lessThanOrEqualTo($asOf))
+            ->sortBy('recall_due_date')
+            ->values();
+    }
 }
