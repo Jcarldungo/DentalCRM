@@ -48,6 +48,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Appointments
                                 </NavLink>
+                                <NavLink
+                                    href={route('inquiries.index')}
+                                    active={route().current('inquiries.index')}
+                                >
+                                    Inquiries
+                                </NavLink>
                             </div>
                         </div>
 
@@ -169,6 +175,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('appointments.index')}
                         >
                             Appointments
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('inquiries.index')}
+                            active={route().current('inquiries.index')}
+                        >
+                            Inquiries
                         </ResponsiveNavLink>
                     </div>
 
