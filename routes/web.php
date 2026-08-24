@@ -4,8 +4,15 @@ use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
+use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
+use App\Http\Controllers\InquiryController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+
+// Public inquiry submission endpoint
+Route::post('/contact', [InquiryController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('inquiries.store');
 
 // Internal-only app — the homepage has no public content of its own.
 // Send everyone straight to the dashboard; the `auth` middleware there
@@ -31,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
     Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
     Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update'])->name('appointments.update');
+
+    Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
+    Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');
 });
 
 require __DIR__.'/auth.php';
