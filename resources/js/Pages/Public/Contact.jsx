@@ -31,12 +31,18 @@ export default function Contact({ initialService }) {
 
     return (
         <PublicLayout>
-            <Head title="Contact" />
+            <Head title="Contact">
+                <meta
+                    name="description"
+                    content="Get in touch with Harborview Dental Clinic to book an appointment or ask a question — our team is happy to help."
+                />
+            </Head>
 
             <section className="py-20 sm:py-24">
                 <Container className="grid gap-12 lg:grid-cols-2">
                     <div className="flex flex-col gap-8">
                         <SectionHeading
+                            as="h1"
                             align="left"
                             eyebrow="Contact"
                             title="Get in touch"
@@ -123,8 +129,14 @@ export default function Contact({ initialService }) {
                                         type="text"
                                         value={data.service_interest}
                                         onChange={(e) => setData('service_interest', e.target.value)}
+                                        aria-describedby={errors.service_interest ? 'service_interest-error' : undefined}
                                         className={inputClass}
                                     />
+                                    {errors.service_interest && (
+                                        <p id="service_interest-error" className="mt-1 text-sm text-red-600">
+                                            {errors.service_interest}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>

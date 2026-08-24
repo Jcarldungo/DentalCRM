@@ -13,8 +13,19 @@ class InquiryController extends Controller
 {
     public function index(): Response
     {
+        $inquiries = Inquiry::latest()->get()->map(fn (Inquiry $inquiry) => [
+            'id' => $inquiry->id,
+            'name' => $inquiry->name,
+            'email' => $inquiry->email,
+            'phone' => $inquiry->phone,
+            'service_interest' => $inquiry->service_interest,
+            'message' => $inquiry->message,
+            'read_at' => $inquiry->read_at,
+            'created_at' => $inquiry->created_at->toDateString(),
+        ]);
+
         return Inertia::render('Admin/Inquiries/Index', [
-            'inquiries' => Inquiry::latest()->get(),
+            'inquiries' => $inquiries,
         ]);
     }
 

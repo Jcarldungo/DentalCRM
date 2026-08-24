@@ -1,5 +1,3 @@
-// resources/js/Pages/Public/About.jsx
-
 import { Head } from '@inertiajs/react';
 import PublicLayout from '@/Layouts/PublicLayout';
 import Container from '@/Components/Public/Container';
@@ -16,7 +14,12 @@ const VALUES = [
 export default function About() {
     return (
         <PublicLayout>
-            <Head title="About" />
+            <Head title="About">
+                <meta
+                    name="description"
+                    content="Learn about Harborview Dental Clinic's mission, values, and commitment to patient-centered dental care in a calm environment."
+                />
+            </Head>
 
             <section className="py-20 sm:py-24">
                 <Container className="mx-auto flex max-w-3xl flex-col gap-6 text-center">

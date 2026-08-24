@@ -1,5 +1,3 @@
-// resources/js/Pages/Public/Home.jsx
-
 import { Head } from '@inertiajs/react';
 import PublicLayout, { CLINIC } from '@/Layouts/PublicLayout';
 import Container from '@/Components/Public/Container';
@@ -47,7 +45,12 @@ const WHY_CHOOSE_US = [
 export default function Home() {
     return (
         <PublicLayout>
-            <Head title="Home" />
+            <Head title="Home">
+                <meta
+                    name="description"
+                    content="Harborview Dental Clinic offers gentle, modern dental care for the whole family, from routine cleanings to advanced treatments."
+                />
+            </Head>
 
             <section className="border-b border-stone-200 bg-stone-50">
                 <Container className="grid gap-12 py-20 sm:py-28 lg:grid-cols-2 lg:items-center">

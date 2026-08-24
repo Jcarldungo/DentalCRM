@@ -62,7 +62,11 @@ export default function PublicLayout({ children }) {
                         onClick={() => setMobileOpen((open) => !open)}
                         className="inline-flex items-center justify-center rounded-md p-2 text-stone-600 hover:bg-stone-100 md:hidden"
                     >
-                        {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                        {mobileOpen ? (
+                            <X className="h-6 w-6" aria-hidden="true" />
+                        ) : (
+                            <Menu className="h-6 w-6" aria-hidden="true" />
+                        )}
                     </button>
                 </div>
 

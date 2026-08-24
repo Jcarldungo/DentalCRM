@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/PublicSiteController.php
 
 namespace App\Http\Controllers;
 

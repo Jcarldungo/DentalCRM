@@ -56,4 +56,19 @@ class InquiryTest extends TestCase
 
         $this->assertNull(Inquiry::first()->read_at);
     }
+
+    public function test_a_single_legitimate_submission_is_not_blocked_by_the_rate_limiter(): void
+    {
+        $response = $this->post(route('inquiries.store'), [
+            'name' => 'Angela Reyes',
+            'email' => 'angela@example.com',
+            'phone' => '09171234567',
+            'service_interest' => 'Teeth Whitening',
+            'message' => 'I would like to book a whitening consultation.',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('inquiries', 1);
+    }
 }

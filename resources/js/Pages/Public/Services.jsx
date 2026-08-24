@@ -8,11 +8,17 @@ import { services } from '@/Data/services';
 export default function Services() {
     return (
         <PublicLayout>
-            <Head title="Services" />
+            <Head title="Services">
+                <meta
+                    name="description"
+                    content="Explore Harborview Dental Clinic's full range of dental services, from routine check-ups to cosmetic and restorative treatments."
+                />
+            </Head>
 
             <section className="py-20 sm:py-24">
                 <Container className="flex flex-col items-center gap-12">
                     <SectionHeading
+                        as="h1"
                         eyebrow="Services"
                         title="Our dental services"
                         subtitle="Comprehensive care for every stage of your dental health, from routine visits to advanced procedures."
