@@ -1,5 +1,4 @@
 <?php
-// tests/Feature/InquiryManagementTest.php
 
 namespace Tests\Feature;
 
