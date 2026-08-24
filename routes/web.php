@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
 use App\Http\Controllers\InquiryController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicSiteController;
 use Illuminate\Support\Facades\Route;
 
 // Public inquiry submission endpoint
@@ -14,10 +15,11 @@ Route::post('/contact', [InquiryController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('inquiries.store');
 
-// Internal-only app — the homepage has no public content of its own.
-// Send everyone straight to the dashboard; the `auth` middleware there
-// redirects a guest on to /login.
-Route::redirect('/', '/dashboard');
+Route::get('/', [PublicSiteController::class, 'home'])->name('home');
+Route::get('/services', [PublicSiteController::class, 'services'])->name('services');
+Route::get('/dentists', [PublicSiteController::class, 'dentists'])->name('dentists');
+Route::get('/about', [PublicSiteController::class, 'about'])->name('about');
+Route::get('/contact', [PublicSiteController::class, 'contact'])->name('contact');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
