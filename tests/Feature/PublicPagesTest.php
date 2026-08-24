@@ -23,4 +23,11 @@ class PublicPagesTest extends TestCase
 
         $response->assertOk();
     }
+
+    public function test_dentists_page_is_reachable_by_a_guest(): void
+    {
+        $response = $this->get(route('dentists'));
+
+        $response->assertOk();
+    }
 }
