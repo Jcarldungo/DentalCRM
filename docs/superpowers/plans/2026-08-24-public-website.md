@@ -621,10 +621,11 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `resources/js/Components/Public/ServiceCard.jsx`
 - Create: `resources/js/Components/Public/DentistCard.jsx`
 - Create: `resources/js/Components/Public/TestimonialCard.jsx`
+- Create: `resources/js/Components/Public/ContactInfo.jsx`
 
 **Interfaces:**
 - Consumes: `services` (Task 2, for the footer's service list).
-- Produces: `PublicLayout` (default export, also named export `CLINIC` — `{name, address, phone, email, hours: [{days, time}]}`), `Container`, `Button` (`{href?, variant: 'primary'|'outline', ...props}`), `SectionHeading` (`{eyebrow?, title, subtitle?, align: 'center'|'left'}`), `Avatar` (`{name, size: 'md'|'lg'}`), `FaqItem` (`{question, answer}`), `ServiceCard` (`{service}`), `DentistCard` (`{dentist}`), `TestimonialCard` (`{testimonial}`). All consumed by Tasks 4–8's pages.
+- Produces: `PublicLayout` (default export, also named export `CLINIC` — `{name, address, phone, email, hours: [{days, time}]}`), `Container`, `Button` (`{href?, variant: 'primary'|'outline', ...props}`), `SectionHeading` (`{eyebrow?, title, subtitle?, align: 'center'|'left'}`), `Avatar` (`{name, size: 'md'|'lg'}`), `FaqItem` (`{question, answer}`), `ServiceCard` (`{service}`), `DentistCard` (`{dentist}`), `TestimonialCard` (`{testimonial}`), `ContactInfo` (no props — renders the address/phone/email/hours list using `CLINIC`). `ContactInfo` exists so Task 4's Home page and Task 8's Contact page don't each write out the same address/phone/email/hours markup — both need the identical block. All consumed by Tasks 4–8's pages.
 
 No independent test — this is presentational infrastructure verified when Task 4's Home page renders it. Steps below are implementation only; the "run and check" step happens in Task 4.
 
@@ -843,7 +844,47 @@ export default function TestimonialCard({ testimonial }) {
 }
 ```
 
-- [ ] **Step 10: Create `PublicLayout`**
+- [ ] **Step 10: Create `ContactInfo`**
+
+```jsx
+// resources/js/Components/Public/ContactInfo.jsx
+
+import { MapPin, Phone, Mail, Clock } from 'lucide-react';
+import { CLINIC } from '@/Layouts/PublicLayout';
+
+export default function ContactInfo() {
+    return (
+        <ul className="flex flex-col gap-3 text-stone-600">
+            <li className="flex items-center gap-3">
+                <MapPin className="h-5 w-5 text-teal-700" aria-hidden="true" />
+                {CLINIC.address}
+            </li>
+            <li className="flex items-center gap-3">
+                <Phone className="h-5 w-5 text-teal-700" aria-hidden="true" />
+                {CLINIC.phone}
+            </li>
+            <li className="flex items-center gap-3">
+                <Mail className="h-5 w-5 text-teal-700" aria-hidden="true" />
+                {CLINIC.email}
+            </li>
+            <li className="flex items-start gap-3">
+                <Clock className="mt-0.5 h-5 w-5 text-teal-700" aria-hidden="true" />
+                <span>
+                    {CLINIC.hours.map((h) => (
+                        <span key={h.days} className="block">
+                            {h.days}: {h.time}
+                        </span>
+                    ))}
+                </span>
+            </li>
+        </ul>
+    );
+}
+```
+
+`PublicLayout`'s own footer (Step 11 below) keeps its own smaller, four-column-grid contact block inline — it uses different icon sizes and denser spacing than this component, so forcing it into `ContactInfo` would need a prop just to change sizing for one caller. `ContactInfo` is for the two places that render the block identically: Home's "Visit us" section (Task 4) and the Contact page's info column (Task 8).
+
+- [ ] **Step 11: Create `PublicLayout`**
 
 ```jsx
 // resources/js/Layouts/PublicLayout.jsx
@@ -1009,7 +1050,7 @@ export default function PublicLayout({ children }) {
 }
 ```
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add -A
@@ -1029,7 +1070,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Test: `tests/Feature/PublicPagesTest.php`
 
 **Interfaces:**
-- Consumes: `PublicLayout`, `Container`, `Button`, `SectionHeading`, `ServiceCard`, `DentistCard`, `TestimonialCard`, `FaqItem` (Task 3); `services`, `dentists`, `testimonials`, `faqs` (Task 2).
+- Consumes: `PublicLayout`, `Container`, `Button`, `SectionHeading`, `ServiceCard`, `DentistCard`, `TestimonialCard`, `FaqItem`, `ContactInfo` (Task 3); `services`, `dentists`, `testimonials`, `faqs` (Task 2).
 - Produces: route names `home`, `services`, `dentists`, `about`, `contact` (all GET). Tasks 5–8 rely on these routes already existing and only need to add the page component each one renders.
 
 - [ ] **Step 1: Write the failing test**
@@ -1149,11 +1190,12 @@ import ServiceCard from '@/Components/Public/ServiceCard';
 import DentistCard from '@/Components/Public/DentistCard';
 import TestimonialCard from '@/Components/Public/TestimonialCard';
 import FaqItem from '@/Components/Public/FaqItem';
+import ContactInfo from '@/Components/Public/ContactInfo';
 import { services } from '@/Data/services';
 import { dentists } from '@/Data/dentists';
 import { testimonials } from '@/Data/testimonials';
 import { faqs } from '@/Data/faqs';
-import { ShieldCheck, HeartPulse, Building2, UserCheck, CalendarCheck, MapPin, Phone, Mail, Clock } from 'lucide-react';
+import { ShieldCheck, HeartPulse, Building2, UserCheck, CalendarCheck } from 'lucide-react';
 
 const WHY_CHOOSE_US = [
     {
@@ -1302,30 +1344,7 @@ export default function Home() {
                 <Container className="grid gap-10 lg:grid-cols-2 lg:items-center">
                     <div className="flex flex-col gap-4">
                         <h2 className="text-3xl font-semibold tracking-tight text-stone-900">Visit us</h2>
-                        <ul className="flex flex-col gap-3 text-stone-600">
-                            <li className="flex items-center gap-3">
-                                <MapPin className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.address}
-                            </li>
-                            <li className="flex items-center gap-3">
-                                <Phone className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.phone}
-                            </li>
-                            <li className="flex items-center gap-3">
-                                <Mail className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.email}
-                            </li>
-                            <li className="flex items-start gap-3">
-                                <Clock className="mt-0.5 h-5 w-5 text-teal-700" aria-hidden="true" />
-                                <span>
-                                    {CLINIC.hours.map((h) => (
-                                        <span key={h.days} className="block">
-                                            {h.days}: {h.time}
-                                        </span>
-                                    ))}
-                                </span>
-                            </li>
-                        </ul>
+                        <ContactInfo />
                     </div>
 
                     <div className="flex flex-col items-start gap-4 rounded-lg border border-stone-200 bg-white p-8">
@@ -1686,7 +1705,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Modify: `tests/Feature/PublicPagesTest.php`
 
 **Interfaces:**
-- Consumes: `PublicLayout`, `CLINIC`, `Container`, `SectionHeading` (Task 3); `contact` route with `initialService` prop, `inquiries.store` route (Tasks 1 and 4).
+- Consumes: `PublicLayout`, `Container`, `SectionHeading`, `ContactInfo` (Task 3); `contact` route with `initialService` prop, `inquiries.store` route (Tasks 1 and 4).
 
 - [ ] **Step 1: Add the failing test**
 
@@ -1708,10 +1727,11 @@ Add to `tests/Feature/PublicPagesTest.php`:
 
 import { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import PublicLayout, { CLINIC } from '@/Layouts/PublicLayout';
+import PublicLayout from '@/Layouts/PublicLayout';
 import Container from '@/Components/Public/Container';
 import SectionHeading from '@/Components/Public/SectionHeading';
-import { MapPin, Phone, Mail, Clock, CheckCircle2 } from 'lucide-react';
+import ContactInfo from '@/Components/Public/ContactInfo';
+import { CheckCircle2 } from 'lucide-react';
 
 const inputClass =
     'mt-1 block w-full rounded-md border border-stone-300 px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-teal-700 focus:outline-none focus:ring-1 focus:ring-teal-700';
@@ -1750,30 +1770,7 @@ export default function Contact({ initialService }) {
                             subtitle="Send us your inquiry and our clinic team will get back to you."
                         />
 
-                        <ul className="flex flex-col gap-4 text-stone-600">
-                            <li className="flex items-center gap-3">
-                                <MapPin className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.address}
-                            </li>
-                            <li className="flex items-center gap-3">
-                                <Phone className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.phone}
-                            </li>
-                            <li className="flex items-center gap-3">
-                                <Mail className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                                {CLINIC.email}
-                            </li>
-                            <li className="flex items-start gap-3">
-                                <Clock className="mt-0.5 h-5 w-5 text-teal-700" aria-hidden="true" />
-                                <span>
-                                    {CLINIC.hours.map((h) => (
-                                        <span key={h.days} className="block">
-                                            {h.days}: {h.time}
-                                        </span>
-                                    ))}
-                                </span>
-                            </li>
-                        </ul>
+                        <ContactInfo />
                     </div>
 
                     <div className="rounded-lg border border-stone-200 bg-white p-8">
@@ -2090,3 +2087,4 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - **Placeholder scan:** no TBD/TODO; every step has real, complete code.
 - **Type consistency:** `Inquiry`'s fillable fields (`name`, `email`, `phone`, `service_interest`, `message`, `read_at`) are identical across the migration (Task 1), model (Task 1), factory (Task 1), `InquiryController@store`'s validation (Task 1), and `Contact.jsx`'s form fields (Task 8) — no drift. `PublicLayout`'s exported `CLINIC` shape (`name`, `address`, `phone`, `email`, `hours: [{days, time}]`) is defined once (Task 3) and consumed identically in `Home.jsx` (Task 4) and `Contact.jsx` (Task 8). Route names (`home`, `services`, `dentists`, `about`, `contact`, `inquiries.store`, `inquiries.index`, `inquiries.update`) are defined once each in `routes/web.php` (Tasks 1 and 4) and referenced by those exact names everywhere else.
 - **Deviation from the spec:** none identified — the `service_interest` query-param pass-through (`ServiceCard` → `contact` route → `PublicSiteController@contact` → `initialService` prop → form default) implements the spec's "communicated through the UI if practical" language as a concrete mechanism.
+- **Pre-flight fix (2026-08-24, before dispatch):** the original draft had Home.jsx and Contact.jsx each writing out the identical address/phone/email/hours block inline — verbatim duplication a code-quality reviewer would flag. Extracted `ContactInfo` (Task 3, Step 10) and updated both consuming pages (Tasks 4 and 8) to render it instead. `PublicLayout`'s own footer keeps its separate, more compact inline version since its icon sizing and spacing genuinely differ — noted in Task 3 so a reviewer doesn't flag that as missed reuse.
