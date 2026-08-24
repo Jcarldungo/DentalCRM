@@ -37,4 +37,11 @@ class PublicPagesTest extends TestCase
 
         $response->assertOk();
     }
+
+    public function test_contact_page_is_reachable_by_a_guest(): void
+    {
+        $response = $this->get(route('contact'));
+
+        $response->assertOk();
+    }
 }
