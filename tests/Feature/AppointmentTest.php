@@ -227,4 +227,199 @@ class AppointmentTest extends TestCase
         ]);
         $this->assertSame('2026-09-02', $appointment->fresh()->preferred_date->toDateString());
     }
+
+    public function test_overlapping_appointment_for_the_same_provider_is_rejected(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+        ]);
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => Patient::factory()->create()->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:30:00',
+            'end_time' => '2026-09-01 10:30:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertSessionHasErrors('start_time');
+        $this->assertSame(1, Appointment::count());
+    }
+
+    public function test_back_to_back_appointments_for_the_same_provider_are_allowed(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 09:30:00',
+        ]);
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => Patient::factory()->create()->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:30:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_same_time_for_a_different_provider_is_allowed(): void
+    {
+        $this->actingUser();
+        Appointment::factory()->create([
+            'provider_id' => Provider::factory()->create()->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+        ]);
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => Patient::factory()->create()->id,
+            'provider_id' => Provider::factory()->create()->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_a_cancelled_appointment_does_not_block_its_old_slot(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'status' => 'cancelled',
+        ]);
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => Patient::factory()->create()->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_a_pending_request_does_not_block_a_slot(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->requested()->create();
+
+        $response = $this->post(route('appointments.store'), [
+            'patient_id' => Patient::factory()->create()->id,
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_saving_an_appointment_over_itself_is_not_a_conflict(): void
+    {
+        $this->actingUser();
+        $appointment = Appointment::factory()->create([
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response = $this->patch(route('appointments.update', $appointment), [
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_rescheduling_onto_another_appointment_is_rejected(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create();
+        Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-01 09:00:00',
+            'end_time' => '2026-09-01 10:00:00',
+        ]);
+        $moving = Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-02 09:00:00',
+            'end_time' => '2026-09-02 10:00:00',
+        ]);
+
+        $response = $this->patch(route('appointments.update', $moving), [
+            'start_time' => '2026-09-01 09:30:00',
+            'end_time' => '2026-09-01 10:30:00',
+        ]);
+
+        $response->assertSessionHasErrors('start_time');
+        $this->assertSame('2026-09-02 09:00:00', $moving->fresh()->start_time->toDateTimeString());
+    }
+
+    public function test_a_request_cannot_be_scheduled_without_a_time(): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->requested()->create();
+
+        $response = $this->patch(route('appointments.update', $request), [
+            'status' => 'scheduled',
+        ]);
+
+        $response->assertSessionHasErrors(['start_time', 'end_time', 'provider_id', 'type']);
+        $this->assertSame('requested', $request->fresh()->status);
+    }
+
+    public function test_a_request_can_be_confirmed_with_a_full_schedule(): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->requested()->create();
+        $provider = Provider::factory()->create();
+
+        $response = $this->patch(route('appointments.update', $request), [
+            'status' => 'scheduled',
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-02 09:00:00',
+            'end_time' => '2026-09-02 09:30:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertRedirect();
+        $confirmed = $request->fresh();
+        $this->assertSame('scheduled', $confirmed->status);
+        $this->assertSame($provider->id, $confirmed->provider_id);
+        $this->assertSame('2026-09-02 09:00:00', $confirmed->start_time->toDateTimeString());
+        $this->assertSame('2026-09-02 09:30:00', $confirmed->end_time->toDateTimeString());
+        $this->assertSame('cleaning', $confirmed->type);
+    }
+
+    public function test_a_request_can_be_declined_without_a_time(): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->requested()->create();
+
+        $response = $this->patch(route('appointments.update', $request), [
+            'status' => 'declined',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame('declined', $request->fresh()->status);
+    }
 }
