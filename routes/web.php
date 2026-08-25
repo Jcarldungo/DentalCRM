@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DentalRecordController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
@@ -53,7 +54,10 @@ Route::middleware('auth')->group(function () {
         ->except(['create', 'edit', 'show']);
 
     Route::resource('patients', PatientController::class)
-        ->except(['create', 'edit', 'show']);
+        ->except(['create', 'edit']);
+
+    Route::post('/patients/{patient}/dental-records', [DentalRecordController::class, 'store'])
+        ->name('dental-records.store');
 
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DentalRecord;
 use App\Models\Patient;
+use App\Models\Provider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,6 +17,32 @@ class PatientController extends Controller
     {
         return Inertia::render('Patients/Index', [
             'patients' => Patient::orderBy('last_name')->orderBy('first_name')->get(),
+        ]);
+    }
+
+    public function show(Patient $patient): Response
+    {
+        return Inertia::render('Patients/Show', [
+            'patient' => $patient,
+            'dentalRecords' => $patient->dentalRecords()
+                ->with(['provider', 'appointment', 'creator'])
+                ->get()
+                ->map(fn (DentalRecord $record) => [
+                    'id' => $record->id,
+                    'type' => $record->type,
+                    'provider_name' => $record->provider?->name,
+                    'appointment_start_time' => $record->appointment?->start_time?->toIso8601String(),
+                    'examination' => $record->examination,
+                    'diagnosis' => $record->diagnosis,
+                    'procedure' => $record->procedure,
+                    'notes' => $record->notes,
+                    'created_at' => $record->created_at->toIso8601String(),
+                    'creator_name' => $record->creator->name,
+                ]),
+            'providers' => Provider::orderBy('name')->get(['id', 'name']),
+            'appointments' => $patient->appointments()
+                ->orderByDesc('start_time')
+                ->get(['id', 'start_time', 'type']),
         ]);
     }
 
