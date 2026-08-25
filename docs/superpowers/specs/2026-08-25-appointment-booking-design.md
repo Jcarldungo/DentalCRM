@@ -206,6 +206,53 @@ Guest preference → requested → staff assigns actual schedule → scheduled
 `status: 'declined'`. The request then no longer appears in the pending
 Requests panel. No email/SMS notification is sent.
 
+## Scheduling integrity
+
+Two guards are added to `AppointmentController` as part of this phase.
+Both live in the staff-facing controller, not the public booking one — a
+guest request has no real time yet, so neither applies at request time.
+
+### Double-booking prevention
+
+`store` and `update` currently validate only that `end_time` is after
+`start_time`, so nothing stops two appointments for the same dentist at
+the same time. That is a pre-existing gap, but this phase is where it
+starts to bite: confirming a request *is* the act of choosing a time, so
+the guard belongs here.
+
+An appointment conflicts when, for the **same `provider_id`**, its
+half-open interval `[start_time, end_time)` overlaps an existing one:
+
+```
+existing.start_time < new.end_time AND existing.end_time > new.start_time
+```
+
+Half-open is deliberate — an appointment ending at 09:30 and the next
+starting at 09:30 do **not** conflict.
+
+Excluded from the conflict query:
+- The appointment being updated itself (so a no-op save isn't a conflict)
+- Rows with `start_time IS NULL` (pending requests hold no slot)
+- Statuses that free the slot: `cancelled`, `declined`, `no_show`
+
+On conflict, fail validation on `start_time` with a message naming the
+clash, rather than throwing — staff should see it inline on the form like
+any other validation error.
+
+### Confirm-transition guard
+
+Because `start_time`, `end_time`, `provider_id`, and `type` are now
+nullable, a request could be flipped to `scheduled` while still missing a
+time. That fails quietly and badly: the FullCalendar feed filters on
+`whereBetween('start_time', ...)`, so such an appointment looks confirmed
+to staff but never appears on the calendar.
+
+So: whenever `update` sets `status` to `scheduled`, all four of
+`start_time`, `end_time`, `provider_id`, and `type` must be present —
+either already on the record or supplied in the same request. Otherwise
+validation fails. A `scheduled` appointment is therefore always a
+complete, visible one.
+
 ## Testing
 
 New `tests/Feature/BookingTest.php`:
@@ -229,6 +276,13 @@ flow — add to it rather than starting a new file):
   those fields persisted correctly.
 - **Decline** — a `requested` appointment `PATCH`-updated to `declined`
   ends up in that state and is excluded from the pending-requests query.
+- **Confirm-transition guard** — flipping a request to `scheduled` without
+  supplying a time fails validation and leaves the record untouched.
+- **Double-booking** — overlapping appointments for the same provider are
+  rejected; back-to-back ones (09:00–09:30 then 09:30–10:00) are allowed;
+  the same time for a *different* provider is allowed; a `cancelled` /
+  `declined` / `no_show` appointment does not block its old slot; and
+  saving an appointment over itself unchanged is not a conflict.
 
 ## Out of scope / explicitly not addressed here
 
@@ -238,3 +292,8 @@ accounts, patient portal, guest cancellation, guest rescheduling,
 automated reminders, a separate `appointment_requests` table, a new
 appointment-related navigation section. All remain deferred to later
 phases of `docs/PLATFORM_VISION.md`, not gaps in this one.
+
+Also deliberately not included, despite being adjacent: general
+status-transition rules (e.g. forbidding `completed` → `requested`).
+Only the one transition this phase can actually break — into `scheduled`
+— is guarded. Broader state-machine enforcement is a separate change.
