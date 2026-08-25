@@ -1,0 +1,80 @@
+# DentalCRM — working notes
+
+Laravel 12 + Inertia 2 + React 18 + Tailwind 3. A dental clinic platform:
+a public marketing site plus an internal front-desk CRM. Personal/portfolio
+project — no real clinic, employer, or client data involved.
+
+## Environment (Windows + Herd)
+
+`php` and `composer` are **not on PATH** in the Bash tool. The README's
+mention of XAMPP is stale — this machine runs Laravel Herd. Use:
+
+```bash
+"/c/Users/JC/.config/herd/bin/php.bat" artisan test
+"/c/Users/JC/.config/herd/bin/composer.bat" install
+```
+
+`npm` is on PATH normally. Run everything from the repo root
+(`C:\dev JC\DentalCRM`).
+
+To see the app: `php artisan serve` (:8000) plus `npm run dev` (Vite, :5173)
+in parallel — or `composer run dev` for both plus queue/logs.
+
+Tests run against **MariaDB** (`dentalcrm_testing`), not SQLite — the
+database must exist before `php artisan test` will work.
+
+## Layout conventions
+
+- **Staff-facing controllers** live in `App\Http\Controllers\Admin\`;
+  public ones sit at the top level (`PublicSiteController`,
+  `InquiryController`). Route names are unprefixed either way
+  (`inquiries.index` is the staff page, `inquiries.store` the public POST).
+- **Tests are flat**: `tests/Feature/<Name>Test.php`. No subdirectories
+  except the framework's `tests/Feature/Auth/`.
+- **Public pages**: `resources/js/Pages/Public/` + `PublicLayout.jsx`.
+  Staff pages use `AuthenticatedLayout.jsx`. Keep the two layouts and
+  their styling entirely separate — the public site's teal/stone palette
+  must not leak into the internal app, or vice versa.
+- **Static marketing content** lives in `resources/js/Data/*.js` (services,
+  dentists, testimonials, faqs) as plain arrays — deliberately not database
+  tables, and there's no admin editor for them.
+- `CLINIC` (exported from `PublicLayout.jsx`) is the single source of truth
+  for clinic name, address, phone, email, and hours. Derive from it rather
+  than hardcoding those values anywhere else.
+
+## Hard constraints
+
+- **No email or SMS sending anywhere.** No mail transport is configured
+  (`phpunit.xml` pins `MAIL_MAILER=array`). Features that would need to
+  notify someone instead surface in-app for staff to act on.
+- **The clinic is fictional**: "Harborview Dental Clinic", a made-up Makati
+  address/phone, and a `.example` email domain. Never introduce a real,
+  resolvable domain. Dentist profiles use initials-avatars, not photos of
+  real-looking people; testimonials are first name + last initial.
+- **Prices are in Philippine pesos** (`₱`).
+- **No roles and no seeded login.** Every authenticated user is an equal
+  front-desk staff member. Register at `/register`;
+  `db:seed --class=DemoSeeder` creates patients/providers/appointments but
+  no user.
+- Clean-codebase rules: no `dd()`/`console.log`/`var_dump`, no unused
+  imports, no commented-out code.
+
+## Planning workflow
+
+Specs and plans are committed to `docs/superpowers/specs/` and
+`docs/superpowers/plans/` as `YYYY-MM-DD-<topic>.md`, one pair per phase.
+Write the spec, get it approved, then write the plan, then implement
+task-by-task with a commit per task.
+
+`docs/PLATFORM_VISION.md` is the long-range roadmap (8 phases) — it's
+aspirational, not a contract. Shipped so far: v1 (internal CRM) and
+Phase 2 (public website). Phase 3 (public appointment requests) is specced
+at `docs/superpowers/specs/2026-08-25-appointment-booking-design.md`.
+
+## Known gaps
+
+- `Patient::dueForRecall()` loads every patient and their cleaning
+  appointments into memory, then filters in PHP. It runs on every dashboard
+  load. Fine at demo scale, should become a query.
+- `Appointment` status transitions are unconstrained beyond
+  `Rule::in(STATUSES)` — any status can become any other.
