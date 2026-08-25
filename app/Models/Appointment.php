@@ -54,19 +54,17 @@ class Appointment extends Model
     }
 
     /**
-     * Does another appointment for this provider overlap [$start, $end)?
-     *
-     * Half-open on purpose: one appointment ending at 09:30 and the next
-     * starting at 09:30 do not conflict. Pending requests (no start_time)
-     * hold no slot, and cancelled/declined/no-show appointments release
-     * theirs.
-     */
-    /**
      * How many appointments already occupy this date + time-of-day slot,
-     * clinic-wide: pending requests for it, plus already-scheduled
+     * clinic-wide: still-pending requests for it, plus already-scheduled
      * appointments whose real start_time falls in that half of the day.
      * Declined/cancelled/no-show appointments free their slot and don't
      * count.
+     *
+     * A confirmed request keeps its original preferred_date/
+     * preferred_time_of_day (confirming doesn't clear them), so the pending
+     * branch is scoped to status 'requested' — otherwise a request
+     * confirmed into a different time-of-day than it originally asked for
+     * would occupy both its old slot and its real one forever.
      */
     public static function countBookedForSlot(Carbon $date, string $timeOfDay): int
     {
@@ -75,9 +73,11 @@ class Appointment extends Model
         $boundary = $date->clone()->setTimeFromTimeString($afternoonStartsAt);
         $dayEnd = $date->clone()->endOfDay();
 
+        // Half-open at the boundary so a start_time of exactly
+        // afternoon_starts_at counts once, as afternoon, not twice.
         [$rangeStart, $rangeEnd] = $timeOfDay === 'afternoon'
             ? [$boundary, $dayEnd]
-            : [$dayStart, $boundary];
+            : [$dayStart, $boundary->clone()->subSecond()];
 
         return static::query()
             ->whereNotIn('status', self::SLOT_FREEING_STATUSES)
@@ -85,6 +85,7 @@ class Appointment extends Model
                 $query
                     ->where(function ($requested) use ($date, $timeOfDay) {
                         $requested
+                            ->where('status', 'requested')
                             ->whereDate('preferred_date', $date)
                             ->where('preferred_time_of_day', $timeOfDay);
                     })
@@ -97,6 +98,14 @@ class Appointment extends Model
             ->count();
     }
 
+    /**
+     * Does another appointment for this provider overlap [$start, $end)?
+     *
+     * Half-open on purpose: one appointment ending at 09:30 and the next
+     * starting at 09:30 do not conflict. Pending requests (no start_time)
+     * hold no slot, and cancelled/declined/no-show appointments release
+     * theirs.
+     */
     public static function hasConflict(int $providerId, Carbon $start, Carbon $end, ?int $ignoreId = null): bool
     {
         return static::query()

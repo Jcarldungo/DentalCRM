@@ -82,3 +82,11 @@ yet.
   load. Fine at demo scale, should become a query.
 - `Appointment` status transitions are unconstrained beyond
   `Rule::in(STATUSES)` — any status can become any other.
+- `Appointment::countBookedForSlot()` and `hasConflict()` do a full table
+  scan (no index on `preferred_date`/`preferred_time_of_day`/`status`/
+  `start_time`). Fine at demo scale; add a composite index if the table
+  grows.
+- Both of those checks are also check-then-act: two concurrent submissions
+  can each pass the check and together exceed capacity or double-book a
+  provider. Low-risk at this traffic level; would need a transaction +
+  row lock to close.

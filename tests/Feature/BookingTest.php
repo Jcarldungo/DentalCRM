@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\Patient;
+use App\Models\Provider;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -290,6 +291,54 @@ class BookingTest extends TestCase
         $response = $this->post(route('bookings.store'), $this->validPayload([
             'preferred_date' => $date,
             'preferred_time_of_day' => 'afternoon',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_confirming_a_request_into_a_different_time_of_day_frees_its_original_slot(): void
+    {
+        config(['clinic.max_requests_per_slot' => 1]);
+        $date = $this->openDate();
+
+        // Guest originally requested morning; staff only had an afternoon
+        // opening and confirmed it there. The request's preferred_* fields
+        // are never cleared on confirm, so the stale morning preference must
+        // not still count toward the morning slot.
+        Appointment::factory()->requested()->create([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+            'status' => 'scheduled',
+            'provider_id' => Provider::factory(),
+            'start_time' => Carbon::parse($date)->setTime(14, 0),
+            'end_time' => Carbon::parse($date)->setTime(14, 30),
+            'type' => 'checkup',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_an_appointment_starting_exactly_at_the_afternoon_boundary_does_not_also_fill_the_morning_slot(): void
+    {
+        config(['clinic.max_requests_per_slot' => 1]);
+        $date = $this->openDate();
+
+        Appointment::factory()->create([
+            'start_time' => Carbon::parse($date)->setTime(12, 0),
+            'end_time' => Carbon::parse($date)->setTime(12, 30),
+            'status' => 'scheduled',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
         ]));
 
         $response->assertSessionHasNoErrors();
