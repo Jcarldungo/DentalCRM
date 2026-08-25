@@ -18,10 +18,10 @@ export default function ServiceCard({ service }) {
                 <span className="font-medium text-stone-700">{service.price}</span>
             </div>
             <Link
-                href={route('contact', { service: service.name })}
+                href={route('book', { service: service.name })}
                 className="inline-flex items-center gap-1 text-sm font-medium text-teal-700 hover:text-teal-800"
             >
-                Inquire about this
+                Book this service
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
         </div>

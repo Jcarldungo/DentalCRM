@@ -8,6 +8,7 @@ const NAV_LINKS = [
     { name: 'services', label: 'Services' },
     { name: 'dentists', label: 'Dentists' },
     { name: 'about', label: 'About' },
+    { name: 'book', label: 'Book' },
     { name: 'contact', label: 'Contact' },
 ];
 
@@ -35,7 +36,7 @@ export default function PublicLayout({ children }) {
                     </Link>
 
                     <nav className="hidden items-center gap-8 md:flex">
-                        {NAV_LINKS.filter((l) => l.name !== 'contact').map((link) => (
+                        {NAV_LINKS.filter((l) => l.name !== 'book').map((link) => (
                             <Link
                                 key={link.name}
                                 href={route(link.name)}
@@ -47,10 +48,10 @@ export default function PublicLayout({ children }) {
                             </Link>
                         ))}
                         <Link
-                            href={route('contact')}
+                            href={route('book')}
                             className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-800"
                         >
-                            Contact
+                            Book an Appointment
                         </Link>
                     </nav>
 

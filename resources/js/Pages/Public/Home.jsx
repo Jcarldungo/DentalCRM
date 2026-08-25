@@ -65,7 +65,12 @@ export default function Home() {
                             From routine cleanings to complete smile makeovers, our team provides gentle,
                             modern dental care in a calm, welcoming environment.
                         </p>
-                        <Button href={route('contact')}>Contact Us</Button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Button href={route('book')}>Book an Appointment</Button>
+                            <Button href={route('contact')} variant="outline">
+                                Contact Us
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="relative mx-auto h-64 w-64 sm:h-80 sm:w-80" aria-hidden="true">
