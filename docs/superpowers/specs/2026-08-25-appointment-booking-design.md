@@ -100,17 +100,35 @@ provider_id   nullable
 type          nullable
 ```
 
-For a newly requested appointment: `start_time`/`end_time` are `NULL`;
-`provider_id` is populated only if the guest picked a dentist, otherwise
-`NULL` ("no preference"); `type` is `NULL` until staff assign one while
-confirming.
+For a newly requested appointment, **all four are `NULL`** — including
+`provider_id`. See "Dentist preference is text, not a provider_id" below
+for why. `type` is `NULL` until staff assign one while confirming.
 
 **New nullable columns:**
 ```
-service_interest       string   e.g. "Root Canal Treatment"
+service_interest        string   e.g. "Root Canal Treatment"
+dentist_preference      string   e.g. "Dr. Elena Santos", or NULL for
+                                  "No preference"
 preferred_date          date     e.g. 2026-09-02
 preferred_time_of_day   string   "morning" | "afternoon" only
+notes                   text     guest's optional free-text note
 ```
+
+### Dentist preference is text, not a provider_id
+
+Phase 2 deliberately kept the public site's dentist profiles
+(`resources/js/Data/dentists.js` — three fictional dentists, slugs like
+`elena-santos`) separate from the internal `providers` table, which holds
+whatever rows staff created. Those are two different populations: a guest
+choosing "Dr. Elena Santos" has no reliable `provider_id` to map to, and
+inventing one would either couple the marketing content to clinic records
+or silently mis-assign the appointment.
+
+So the guest's choice is stored as **free text** in `dentist_preference`,
+and `provider_id` stays `NULL` on every request. Staff assign the real
+provider when confirming — which the confirm-transition guard below
+already requires. This keeps the guest's input honestly labelled as a
+preference and leaves Phase 2's boundary intact.
 
 `AppointmentController@events` (the FullCalendar feed) needs no code
 change — its `whereBetween('start_time', ...)` query naturally excludes
@@ -126,10 +144,19 @@ Form fields, in order:
    data).
 2. **Dentist** — optional. Populated from `resources/js/Data/dentists.js`
    plus a leading "No preference" option.
-3. **Preferred date** — required. The date input must reject days the
-   clinic isn't open. Derive closed days from `CLINIC.hours` (exported by
-   `PublicLayout.jsx`) rather than hardcoding "no Sundays" separately, so
-   this stays correct if clinic hours ever change.
+3. **Preferred date** — required, and must be today or later. The date
+   input must reject days the clinic isn't open.
+
+   Closed days need to be enforced server-side too, and `CLINIC.hours`
+   lives in JavaScript where PHP can't read it. So booking-relevant clinic
+   rules get a server-side home: a new `config/clinic.php` with
+   `closed_days` (`[Carbon::SUNDAY]`). The validator reads it, and
+   `PublicSiteController@book` passes it to the page as a prop so the date
+   input disables exactly the same days. One source of truth for the rule,
+   in the one place both sides can reach.
+
+   `CLINIC.hours` stays what it already is: display copy for the footer
+   and contact blocks. It is not the validation authority.
 4. **Preferred time of day** — required, exactly two options: Morning /
    Afternoon (matching the clinic's actual operating hours — there's no
    evening slot to offer).
@@ -142,10 +169,11 @@ On submit, `BookingController@store`:
    `John@example.com`, `john@example.com`, and `JOHN@EXAMPLE.COM` must all
    resolve to the same patient rather than creating duplicates. Reuses the
    match if found, otherwise creates a new `Patient`.
-3. Creates an `Appointment` with `status: 'requested'`, `start_time` and
-   `end_time` left `NULL`, `provider_id` set only if a dentist was chosen,
-   `service_interest` set to the selected service's name, and
-   `preferred_date`/`preferred_time_of_day` set from the form.
+3. Creates an `Appointment` with `status: 'requested'`;
+   `start_time`, `end_time`, `type`, and `provider_id` all left `NULL`;
+   `service_interest` set to the selected service's name; and
+   `dentist_preference`, `preferred_date`, `preferred_time_of_day`, and
+   `notes` set from the form.
 
 The form collects a single "Name" field (matching the existing Contact
 form), but `Patient` has separate `first_name`/`last_name` columns. When
