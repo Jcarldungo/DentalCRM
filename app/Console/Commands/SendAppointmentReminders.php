@@ -18,7 +18,7 @@ class SendAppointmentReminders extends Command
     {
         $tomorrow = now()->addDay();
 
-        $appointments = Appointment::with('patient')
+        $appointments = Appointment::with(['patient', 'provider'])
             ->where('status', 'scheduled')
             ->whereNull('reminder_sent_at')
             ->whereDate('start_time', $tomorrow->toDateString())
