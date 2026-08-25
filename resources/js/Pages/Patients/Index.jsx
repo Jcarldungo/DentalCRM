@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const emptyForm = {
@@ -82,10 +82,10 @@ export default function Index({ patients }) {
                 <div className="bg-white shadow rounded divide-y">
                     {patients.map((patient) => (
                         <div key={patient.id} className="flex items-center justify-between p-4">
-                            <div>
+                            <Link href={route('patients.show', patient.id)} className="hover:underline">
                                 <div className="font-medium">{patient.first_name} {patient.last_name}</div>
                                 <div className="text-sm text-gray-500">{patient.phone ?? patient.email ?? '—'}</div>
-                            </div>
+                            </Link>
                             <div className="flex items-center gap-3">
                                 <button onClick={() => openEdit(patient)} className="text-sm text-blue-600">Edit</button>
                                 <button onClick={() => destroy(patient)} className="text-sm text-red-600">Delete</button>
