@@ -13,7 +13,7 @@ class Appointment extends Model
 
     public const TYPES = ['checkup', 'cleaning', 'procedure', 'other'];
 
-    public const STATUSES = ['requested', 'scheduled', 'completed', 'cancelled', 'no_show', 'declined'];
+    public const STATUSES = ['requested', 'scheduled', 'checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show', 'declined'];
 
     public const TIMES_OF_DAY = ['morning', 'afternoon'];
 
