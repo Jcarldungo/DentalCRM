@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AppointmentConfirmed;
+use App\Mail\AppointmentDeclined;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Provider;
@@ -10,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -93,6 +96,8 @@ class AppointmentController extends Controller
 
     public function update(Request $request, Appointment $appointment): RedirectResponse
     {
+        $originalStatus = $appointment->status;
+
         $validated = $request->validate([
             'provider_id' => ['sometimes', 'required', 'exists:providers,id'],
             'start_time' => ['sometimes', 'required', 'date'],
@@ -125,7 +130,29 @@ class AppointmentController extends Controller
 
         $appointment->update($validated);
 
+        $this->notifyPatientOfRequestOutcome($originalStatus, $appointment);
+
         return back();
+    }
+
+    /**
+     * A guest submitting a request has no account and no other way to find
+     * out what happened to it, so we email them — but only the moment their
+     * request is actually resolved. Editing an already-scheduled
+     * appointment's time, or moving it to completed/cancelled/no_show,
+     * stays silent.
+     */
+    private function notifyPatientOfRequestOutcome(string $originalStatus, Appointment $appointment): void
+    {
+        if ($originalStatus !== 'requested') {
+            return;
+        }
+
+        match ($appointment->status) {
+            'scheduled' => Mail::to($appointment->patient->email)->send(new AppointmentConfirmed($appointment)),
+            'declined' => Mail::to($appointment->patient->email)->send(new AppointmentDeclined($appointment)),
+            default => null,
+        };
     }
 
     /**

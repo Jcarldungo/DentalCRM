@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Mail\AppointmentConfirmed;
+use App\Mail\AppointmentDeclined;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Provider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AppointmentTest extends TestCase
@@ -421,6 +424,70 @@ class AppointmentTest extends TestCase
 
         $response->assertRedirect();
         $this->assertSame('declined', $request->fresh()->status);
+    }
+
+    public function test_confirming_a_request_emails_the_patient(): void
+    {
+        Mail::fake();
+        $this->actingUser();
+        $patient = Patient::factory()->create(['email' => 'angela@example.com']);
+        $request = Appointment::factory()->requested()->create(['patient_id' => $patient->id]);
+        $provider = Provider::factory()->create();
+
+        $this->patch(route('appointments.update', $request), [
+            'status' => 'scheduled',
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-02 09:00:00',
+            'end_time' => '2026-09-02 09:30:00',
+            'type' => 'cleaning',
+        ]);
+
+        Mail::assertSent(AppointmentConfirmed::class, fn ($mail) => $mail->hasTo('angela@example.com')
+            && $mail->appointment->is($request));
+        Mail::assertNotSent(AppointmentDeclined::class);
+    }
+
+    public function test_declining_a_request_emails_the_patient(): void
+    {
+        Mail::fake();
+        $this->actingUser();
+        $patient = Patient::factory()->create(['email' => 'angela@example.com']);
+        $request = Appointment::factory()->requested()->create(['patient_id' => $patient->id]);
+
+        $this->patch(route('appointments.update', $request), [
+            'status' => 'declined',
+        ]);
+
+        Mail::assertSent(AppointmentDeclined::class, fn ($mail) => $mail->hasTo('angela@example.com')
+            && $mail->appointment->is($request));
+        Mail::assertNotSent(AppointmentConfirmed::class);
+    }
+
+    public function test_updating_an_already_scheduled_appointment_does_not_send_mail(): void
+    {
+        Mail::fake();
+        $this->actingUser();
+        $appointment = Appointment::factory()->create(['status' => 'scheduled']);
+
+        $this->patch(route('appointments.update', $appointment), [
+            'start_time' => '2026-09-02 09:00:00',
+            'end_time' => '2026-09-02 09:30:00',
+        ]);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_marking_a_scheduled_appointment_completed_does_not_send_mail(): void
+    {
+        Mail::fake();
+        $this->actingUser();
+        $appointment = Appointment::factory()->create(['status' => 'scheduled']);
+
+        $this->patch(route('appointments.update', $appointment), [
+            'status' => 'completed',
+        ]);
+
+        Mail::assertNothingSent();
     }
 
     public function test_index_returns_pending_requests_oldest_preferred_date_first(): void

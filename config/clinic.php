@@ -27,4 +27,16 @@ return [
      */
     'afternoon_starts_at' => '12:00',
 
+    /*
+     * Contact details for outbound mail (app/Mail/*). Duplicates
+     * PublicLayout.jsx's CLINIC.phone/email, which is the source of truth
+     * for the public site's display copy — this is the backend's only
+     * equivalent, since transactional mail is rendered server-side and
+     * can't reach into the frontend bundle. Keep the two in sync when
+     * either changes; unifying them would need the frontend to receive
+     * clinic identity as a shared Inertia prop instead of a JS constant.
+     */
+    'contact_phone' => '(02) 8123 4567',
+    'contact_email' => 'hello@harborviewdental.example',
+
 ];

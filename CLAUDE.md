@@ -1,8 +1,13 @@
 # DentalCRM — working notes
 
 Laravel 12 + Inertia 2 + React 18 + Tailwind 3. A dental clinic platform:
-a public marketing site plus an internal front-desk CRM. Personal/portfolio
-project — no real clinic, employer, or client data involved.
+a public marketing site plus an internal front-desk CRM. Built as a
+sellable/configurable product for real dental clinics — not yet sold to
+one, so it currently develops against a fictional stand-in clinic (see
+Hard constraints). No real clinic, employer, or client data involved
+*yet*; keep clinic identity (name, branding, contact info) data-driven
+and swappable rather than hardcoded, since it becomes a real customer's
+data eventually.
 
 ## Environment (Windows + Herd)
 
@@ -44,13 +49,21 @@ database must exist before `php artisan test` will work.
 
 ## Hard constraints
 
-- **No email or SMS sending anywhere.** No mail transport is configured
-  (`phpunit.xml` pins `MAIL_MAILER=array`). Features that would need to
-  notify someone instead surface in-app for staff to act on.
-- **The clinic is fictional**: "Harborview Dental Clinic", a made-up Makati
-  address/phone, and a `.example` email domain. Never introduce a real,
-  resolvable domain. Dentist profiles use initials-avatars, not photos of
-  real-looking people; testimonials are first name + last initial.
+- **No SMS sending anywhere.** Mail exists but only via the `log` driver
+  (`.env.example`'s `MAIL_MAILER=log`; `phpunit.xml` pins `MAIL_MAILER=array`
+  for tests) — real `Mailable`/view code, nothing ever leaves the fictional
+  clinic's fake domain. `app/Mail/AppointmentConfirmed.php` and
+  `AppointmentDeclined.php` (sent from
+  `Admin\AppointmentController::update()`) are the only senders so far.
+  Anything else that would need to notify someone still surfaces in-app for
+  staff to act on, unless it specifically needs to reach a guest with no
+  account — then follow the same pattern.
+- **The clinic is fictional for now**: "Harborview Dental Clinic", a
+  made-up Makati address/phone, and a `.example` email domain. Don't
+  introduce a real, resolvable domain — there's no real customer onboarded
+  yet, not a permanent rule against ever having one. Dentist profiles use
+  initials-avatars, not photos of real-looking people; testimonials are
+  first name + last initial.
 - **Prices are in Philippine pesos** (`₱`).
 - **No roles and no seeded login.** Every authenticated user is an equal
   front-desk staff member. Register at `/register`;
@@ -72,8 +85,8 @@ aspirational, not a contract. Shipped so far: v1 (internal CRM), Phase 2
 *requests*, specced at
 `docs/superpowers/specs/2026-08-25-appointment-booking-design.md`) —
 manual staff confirm/decline, a clinic-wide per-slot capacity cap on the
-booking form, no live per-provider availability, no guest notifications
-yet.
+booking form, no live per-provider availability, and a confirm/decline
+email to the guest (see Hard constraints).
 
 ## Known gaps
 
