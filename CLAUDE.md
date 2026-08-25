@@ -44,8 +44,11 @@ database must exist before `php artisan test` will work.
   dentists, testimonials, faqs) as plain arrays — deliberately not database
   tables, and there's no admin editor for them.
 - `CLINIC` (exported from `PublicLayout.jsx`) is the single source of truth
-  for clinic name, address, phone, email, and hours. Derive from it rather
-  than hardcoding those values anywhere else.
+  for clinic name, address, phone, email, and hours on the **public site**.
+  Derive from it rather than hardcoding those values anywhere else in the
+  frontend. The one exception is `config/clinic.php`'s `contact_phone`/
+  `contact_email`, which server-rendered mail (`app/Mail/*`) reads instead,
+  since it can't reach into the JS bundle — see that file's comment.
 
 ## Hard constraints
 

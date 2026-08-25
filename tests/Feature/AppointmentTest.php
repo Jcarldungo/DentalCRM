@@ -9,6 +9,7 @@ use App\Models\Patient;
 use App\Models\Provider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -475,6 +476,27 @@ class AppointmentTest extends TestCase
         ]);
 
         Mail::assertNothingSent();
+    }
+
+    public function test_a_mail_failure_while_confirming_a_request_does_not_fail_the_update(): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->requested()->create();
+        $provider = Provider::factory()->create();
+
+        Mail::shouldReceive('to->send')->once()->andThrow(new \RuntimeException('mail transport unavailable'));
+        Log::shouldReceive('warning')->once();
+
+        $response = $this->patch(route('appointments.update', $request), [
+            'status' => 'scheduled',
+            'provider_id' => $provider->id,
+            'start_time' => '2026-09-02 09:00:00',
+            'end_time' => '2026-09-02 09:30:00',
+            'type' => 'cleaning',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame('scheduled', $request->fresh()->status);
     }
 
     public function test_marking_a_scheduled_appointment_completed_does_not_send_mail(): void

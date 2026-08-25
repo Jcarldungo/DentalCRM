@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -141,6 +142,12 @@ class AppointmentController extends Controller
      * request is actually resolved. Editing an already-scheduled
      * appointment's time, or moving it to completed/cancelled/no_show,
      * stays silent.
+     *
+     * The status change is already saved by the time this runs, so a
+     * delivery failure here must not fail the request: staff successfully
+     * confirmed/declined the appointment regardless of whether the email
+     * made it out. Logged instead, since a retry wouldn't re-trigger this
+     * (the appointment is no longer 'requested').
      */
     private function notifyPatientOfRequestOutcome(string $originalStatus, Appointment $appointment): void
     {
@@ -148,11 +155,25 @@ class AppointmentController extends Controller
             return;
         }
 
-        match ($appointment->status) {
-            'scheduled' => Mail::to($appointment->patient->email)->send(new AppointmentConfirmed($appointment)),
-            'declined' => Mail::to($appointment->patient->email)->send(new AppointmentDeclined($appointment)),
+        $mailable = match ($appointment->status) {
+            'scheduled' => new AppointmentConfirmed($appointment),
+            'declined' => new AppointmentDeclined($appointment),
             default => null,
         };
+
+        if ($mailable === null) {
+            return;
+        }
+
+        try {
+            Mail::to($appointment->patient->email)->send($mailable);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to email patient about their appointment request outcome.', [
+                'appointment_id' => $appointment->id,
+                'status' => $appointment->status,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
