@@ -41,6 +41,7 @@ class Appointment extends Model
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'preferred_date' => 'date:Y-m-d',
+        'reminder_sent_at' => 'datetime',
     ];
 
     public function patient(): BelongsTo

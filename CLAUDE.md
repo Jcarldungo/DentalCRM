@@ -57,11 +57,14 @@ database must exist before `php artisan test` will work.
   for tests) — real `Mailable`/view code, nothing ever leaves the fictional
   clinic's fake domain. `app/Mail/AppointmentConfirmed.php`,
   `AppointmentDeclined.php` (sent from
-  `Admin\AppointmentController::update()`), and `AppointmentLookupLink.php`
-  (sent from `AppointmentLookupController::send()`) are the only senders so
-  far. Anything else that would need to notify someone still surfaces
-  in-app for staff to act on, unless it specifically needs to reach a
-  guest with no account — then follow the same pattern.
+  `Admin\AppointmentController::update()`), `AppointmentLookupLink.php`
+  (sent from `AppointmentLookupController::send()`), and
+  `AppointmentReminder.php` (sent from the
+  `appointments:send-reminders` scheduled command — see Planning
+  workflow) are the only senders so far. Anything else that would need to
+  notify someone still surfaces in-app for staff to act on, unless it
+  specifically needs to reach a guest with no account — then follow the
+  same pattern.
   `AppointmentLookupLink` alone implements `ShouldQueue` (needed for its
   no-enumeration guarantee — see its docblock), so a queue worker must be
   running for that one link to actually go out; `composer run dev` already
@@ -94,9 +97,14 @@ aspirational, not a contract. Shipped so far: v1 (internal CRM), Phase 2
 `docs/superpowers/specs/2026-08-25-appointment-booking-design.md`) —
 manual staff confirm/decline, a clinic-wide per-slot capacity cap on the
 booking form, no live per-provider availability, a confirm/decline email
-to the guest, and a passwordless status lookup (`/my-appointments` — email
-in, a 30-minute signed link out, no accounts) — see Hard constraints. No
-patient accounts/portal (Phase 4 proper) exist yet.
+to the guest, a passwordless status lookup (`/my-appointments` — email
+in, a 30-minute signed link out, no accounts), and a day-before reminder
+email for scheduled appointments (`appointments:send-reminders`, run
+daily at 17:00 clinic time via `routes/console.php`'s `Schedule::command`
+— `composer run dev` runs `schedule:work` locally so this actually fires
+in dev; a real deploy needs the standard Laravel cron entry calling
+`schedule:run` every minute) — see Hard constraints. No patient
+accounts/portal (Phase 4 proper) exist yet.
 
 ## Known gaps
 
@@ -113,3 +121,8 @@ patient accounts/portal (Phase 4 proper) exist yet.
   can each pass the check and together exceed capacity or double-book a
   provider. Low-risk at this traffic level; would need a transaction +
   row lock to close.
+- If `appointments:send-reminders` fails to email one appointment, it's
+  never retried — by the next day's run that appointment's `start_time`
+  is no longer "tomorrow," so it falls out of the query for good. Same
+  risk tolerance as the confirm/decline mail-failure handling (logged,
+  not retried).
