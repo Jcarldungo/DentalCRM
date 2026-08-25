@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\InquiryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\Route;
 Route::post('/contact', [InquiryController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('inquiries.store');
+
+// Public appointment request submission
+Route::post('/book', [BookingController::class, 'store'])
+    ->middleware('throttle:6,1')
+    ->name('bookings.store');
 
 Route::get('/', [PublicSiteController::class, 'home'])->name('home');
 Route::get('/services', [PublicSiteController::class, 'services'])->name('services');
