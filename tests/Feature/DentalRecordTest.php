@@ -312,4 +312,19 @@ class DentalRecordTest extends TestCase
         $this->assertFalse(Route::has('dental-records.update'));
         $this->assertFalse(Route::has('dental-records.destroy'));
     }
+
+    public function test_an_array_valued_clinical_field_is_rejected_with_a_validation_error_instead_of_erroring(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        $response = $this->post(route('dental-records.store', $patient), [
+            'type' => 'consultation',
+            'examination' => ['not', 'a', 'string'],
+        ]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHasErrors('examination');
+        $this->assertSame(0, DentalRecord::count());
+    }
 }

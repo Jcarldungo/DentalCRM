@@ -31,7 +31,11 @@ class DentalRecordController extends Controller
 
         $validator->after(function ($validator) use ($request) {
             $hasClinicalContent = collect(['examination', 'diagnosis', 'procedure', 'notes'])
-                ->contains(fn (string $field) => trim((string) $request->input($field)) !== '');
+                ->contains(function (string $field) use ($request) {
+                    $value = $request->input($field);
+
+                    return is_string($value) && trim($value) !== '';
+                });
 
             if (! $hasClinicalContent) {
                 $validator->errors()->add(
