@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Models\Patient;
+use App\Models\Provider;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
@@ -37,6 +39,8 @@ class QueueController extends Controller
         ];
 
         return Inertia::render('Queue/Index', [
+            'patients' => Patient::orderBy('last_name')->get(['id', 'first_name', 'last_name']),
+            'providers' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
             'todaysSchedule' => $appointments->where('status', 'scheduled')->map($forBoard)->values(),
             'waiting' => $appointments->where('status', 'checked_in')->map($forBoard)->values(),
             'nowServing' => $appointments->where('status', 'in_treatment')->map($forBoard)->values(),
