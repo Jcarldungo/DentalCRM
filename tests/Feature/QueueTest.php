@@ -168,4 +168,85 @@ class QueueTest extends TestCase
             ->where('todaysSchedule.0.type', 'cleaning')
         );
     }
+
+    public function test_guest_cannot_add_a_walk_in(): void
+    {
+        $patient = \App\Models\Patient::factory()->create();
+        $provider = \App\Models\Provider::factory()->create();
+
+        $response = $this->post(route('queue.walkins.store'), [
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'type' => 'checkup',
+        ]);
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_a_walk_in_is_created_checked_in_with_a_thirty_minute_block(): void
+    {
+        $this->actingUser();
+        $patient = \App\Models\Patient::factory()->create();
+        $provider = \App\Models\Provider::factory()->create();
+
+        $response = $this->post(route('queue.walkins.store'), [
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'type' => 'checkup',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(1, Appointment::count());
+        $appointment = Appointment::first();
+        $this->assertSame('checked_in', $appointment->status);
+        $this->assertSame($patient->id, $appointment->patient_id);
+        $this->assertSame($provider->id, $appointment->provider_id);
+        $this->assertSame('checkup', $appointment->type);
+        $this->assertEqualsWithDelta(now()->timestamp, $appointment->start_time->timestamp, 5);
+        $this->assertSame(
+            $appointment->start_time->clone()->addMinutes(30)->timestamp,
+            $appointment->end_time->timestamp
+        );
+    }
+
+    public function test_a_walk_in_appears_in_the_waiting_column(): void
+    {
+        $this->actingUser();
+        $patient = \App\Models\Patient::factory()->create(['first_name' => 'Juan', 'last_name' => 'Dela Cruz']);
+        $provider = \App\Models\Provider::factory()->create();
+
+        $this->post(route('queue.walkins.store'), [
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'type' => 'checkup',
+        ]);
+
+        $response = $this->get(route('queue.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('waiting', 1)
+            ->where('waiting.0.patient_name', 'Juan Dela Cruz')
+        );
+    }
+
+    public function test_a_walk_in_conflicting_with_the_providers_schedule_is_rejected(): void
+    {
+        $this->actingUser();
+        $provider = \App\Models\Provider::factory()->create();
+        Appointment::factory()->create([
+            'provider_id' => $provider->id,
+            'status' => 'scheduled',
+            'start_time' => now(),
+            'end_time' => now()->addMinutes(30),
+        ]);
+
+        $response = $this->post(route('queue.walkins.store'), [
+            'patient_id' => \App\Models\Patient::factory()->create()->id,
+            'provider_id' => $provider->id,
+            'type' => 'checkup',
+        ]);
+
+        $response->assertSessionHasErrors('provider_id');
+        $this->assertSame(1, Appointment::count());
+    }
 }

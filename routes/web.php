@@ -61,6 +61,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update'])->name('appointments.update');
 
     Route::get('/queue', [QueueController::class, 'index'])->name('queue.index');
+    Route::post('/queue/walk-ins', [QueueController::class, 'storeWalkIn'])->name('queue.walkins.store');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');

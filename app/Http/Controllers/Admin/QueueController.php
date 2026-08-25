@@ -6,6 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class QueueController extends Controller
 {
@@ -38,5 +42,40 @@ class QueueController extends Controller
             'nowServing' => $appointments->where('status', 'in_treatment')->map($forBoard)->values(),
             'completed' => $appointments->where('status', 'completed')->map($forBoard)->values(),
         ]);
+    }
+
+    /**
+     * A walk-in has no pre-existing appointment, so it skips Today's
+     * Schedule entirely and lands directly in Waiting. Fixed 30-minute
+     * block: there's no duration-by-appointment-type concept in the
+     * codebase yet, and this phase doesn't add one.
+     */
+    public function storeWalkIn(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'patient_id' => ['required', 'exists:patients,id'],
+            'provider_id' => ['required', 'exists:providers,id'],
+            'type' => ['required', Rule::in(Appointment::TYPES)],
+        ]);
+
+        $start = now();
+        $end = $start->clone()->addMinutes(30);
+
+        if (Appointment::hasConflict((int) $validated['provider_id'], $start, $end)) {
+            throw ValidationException::withMessages([
+                'provider_id' => 'This provider already has an appointment overlapping that time.',
+            ]);
+        }
+
+        Appointment::create([
+            'patient_id' => $validated['patient_id'],
+            'provider_id' => $validated['provider_id'],
+            'type' => $validated['type'],
+            'status' => 'checked_in',
+            'start_time' => $start,
+            'end_time' => $end,
+        ]);
+
+        return back();
     }
 }
