@@ -62,6 +62,10 @@ database must exist before `php artisan test` will work.
   far. Anything else that would need to notify someone still surfaces
   in-app for staff to act on, unless it specifically needs to reach a
   guest with no account — then follow the same pattern.
+  `AppointmentLookupLink` alone implements `ShouldQueue` (needed for its
+  no-enumeration guarantee — see its docblock), so a queue worker must be
+  running for that one link to actually go out; `composer run dev` already
+  starts `queue:listen` alongside the app server.
 - **The clinic is fictional for now**: "Harborview Dental Clinic", a
   made-up Makati address/phone, and a `.example` email domain. Don't
   introduce a real, resolvable domain — there's no real customer onboarded

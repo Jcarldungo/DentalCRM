@@ -4,13 +4,20 @@ namespace App\Mail;
 
 use App\Models\Patient;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\URL;
 
-class AppointmentLookupLink extends Mailable
+/**
+ * Queued rather than sent synchronously — send() must respond identically
+ * whether or not the submitted email matched a patient (see its docblock),
+ * and a synchronous Blade-render-plus-log-write here would make the "found"
+ * branch measurably slower than the "not found" one, defeating that.
+ */
+class AppointmentLookupLink extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 

@@ -7,6 +7,7 @@ use App\Models\Patient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,6 +15,15 @@ use Inertia\Response;
 class AppointmentLookupController extends Controller
 {
     private const CONFIRMATION_MESSAGE = "If that email has any appointments with us, we've sent a link to view them.";
+
+    /**
+     * Per submitted email, not per patient — the throttle:6,1 route
+     * middleware already caps attempts per IP, but that alone would let one
+     * IP re-notify a single known patient indefinitely (mail-bombing their
+     * inbox). This is keyed on the email itself, not on whether it matched,
+     * so hitting it reveals nothing about whether that email is a patient.
+     */
+    private const MAX_LINKS_PER_EMAIL_PER_HOUR = 3;
 
     public function create(): Response
     {
@@ -30,9 +40,12 @@ class AppointmentLookupController extends Controller
             'email' => ['required', 'email', 'max:255'],
         ]);
 
-        $patient = Patient::whereRaw('LOWER(email) = ?', [Str::lower(trim($validated['email']))])->first();
+        $email = Str::lower(trim($validated['email']));
+        $patient = Patient::whereRaw('LOWER(email) = ?', [$email])->first();
+        $rateLimitKey = 'appointment-lookup:'.$email;
 
-        if ($patient) {
+        if ($patient && ! RateLimiter::tooManyAttempts($rateLimitKey, self::MAX_LINKS_PER_EMAIL_PER_HOUR)) {
+            RateLimiter::hit($rateLimitKey, 3600);
             Mail::to($patient->email)->send(new AppointmentLookupLink($patient));
         }
 

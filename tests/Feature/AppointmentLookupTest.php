@@ -33,7 +33,11 @@ class AppointmentLookupTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        Mail::assertSent(AppointmentLookupLink::class, fn ($mail) => $mail->hasTo('angela@example.com')
+        // Queued, not sent synchronously — a synchronous send() would make the
+        // "found" branch measurably slower than the "not found" branch (Blade
+        // render + log-driver disk write happening inside the request), which
+        // would defeat the identical-response anti-enumeration property below.
+        Mail::assertQueued(AppointmentLookupLink::class, fn ($mail) => $mail->hasTo('angela@example.com')
             && $mail->patient->is($patient));
     }
 
@@ -50,7 +54,7 @@ class AppointmentLookupTest extends TestCase
             'email' => 'nobody@example.com',
         ]);
 
-        Mail::assertSent(AppointmentLookupLink::class, 1);
+        Mail::assertQueued(AppointmentLookupLink::class, 1);
         $unknownResponse->assertRedirect($knownResponse->headers->get('Location'));
         $this->assertSame(
             $knownResponse->getSession()->get('status'),
@@ -67,7 +71,7 @@ class AppointmentLookupTest extends TestCase
             'email' => 'ANGELA@Example.COM',
         ]);
 
-        Mail::assertSent(AppointmentLookupLink::class, 1);
+        Mail::assertQueued(AppointmentLookupLink::class, 1);
     }
 
     public function test_email_is_required(): void
@@ -77,7 +81,7 @@ class AppointmentLookupTest extends TestCase
         $response = $this->post(route('appointments.lookup.send'), []);
 
         $response->assertSessionHasErrors('email');
-        Mail::assertNothingSent();
+        Mail::assertNothingOutgoing();
     }
 
     public function test_email_must_be_a_valid_format(): void
@@ -89,7 +93,40 @@ class AppointmentLookupTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('email');
-        Mail::assertNothingSent();
+        Mail::assertNothingOutgoing();
+    }
+
+    public function test_repeated_requests_for_the_same_email_are_rate_limited(): void
+    {
+        Mail::fake();
+        Patient::factory()->create(['email' => 'angela@example.com']);
+
+        foreach (range(1, 4) as $attempt) {
+            $response = $this->post(route('appointments.lookup.send'), [
+                'email' => 'angela@example.com',
+            ]);
+
+            // Still the same generic response even once the limit is hit —
+            // an attacker must not be able to tell "rate limited" apart from
+            // "no such patient" or "link sent".
+            $response->assertRedirect();
+        }
+
+        Mail::assertQueuedCount(3);
+    }
+
+    public function test_rate_limiting_is_scoped_per_email(): void
+    {
+        Mail::fake();
+        Patient::factory()->create(['email' => 'angela@example.com']);
+        Patient::factory()->create(['email' => 'rico@example.com']);
+
+        foreach (range(1, 3) as $attempt) {
+            $this->post(route('appointments.lookup.send'), ['email' => 'angela@example.com']);
+        }
+        $this->post(route('appointments.lookup.send'), ['email' => 'rico@example.com']);
+
+        Mail::assertQueuedCount(4);
     }
 
     public function test_a_valid_signed_link_shows_the_patients_appointments(): void
