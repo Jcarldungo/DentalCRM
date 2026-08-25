@@ -27,7 +27,6 @@ class DentalRecord extends Model
         'diagnosis',
         'procedure',
         'notes',
-        'created_by',
     ];
 
     public function patient(): BelongsTo

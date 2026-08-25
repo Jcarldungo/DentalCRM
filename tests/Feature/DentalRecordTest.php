@@ -28,7 +28,7 @@ class DentalRecordTest extends TestCase
         $provider = Provider::factory()->create();
         $appointment = Appointment::factory()->create(['patient_id' => $patient->id]);
 
-        $record = DentalRecord::create([
+        $record = DentalRecord::factory()->create([
             'patient_id' => $patient->id,
             'provider_id' => $provider->id,
             'appointment_id' => $appointment->id,
