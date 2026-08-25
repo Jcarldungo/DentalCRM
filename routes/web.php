@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
+use App\Http\Controllers\Admin\QueueController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
 use App\Http\Controllers\AppointmentLookupController;
 use App\Http\Controllers\BookingController;
@@ -58,6 +59,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
     Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
     Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update'])->name('appointments.update');
+
+    Route::get('/queue', [QueueController::class, 'index'])->name('queue.index');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');

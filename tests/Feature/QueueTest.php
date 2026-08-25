@@ -92,4 +92,80 @@ class QueueTest extends TestCase
         $response->assertSessionHasErrors('start_time');
         $this->assertSame(1, Appointment::count());
     }
+
+    public function test_guest_cannot_view_the_queue(): void
+    {
+        $response = $this->get(route('queue.index'));
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_index_scopes_each_column_to_todays_appointments_by_status(): void
+    {
+        $this->actingUser();
+        $today = now()->setTime(9, 0);
+
+        $scheduled = Appointment::factory()->create(['status' => 'scheduled', 'start_time' => $today->clone(), 'end_time' => $today->clone()->addMinutes(30)]);
+        $waiting = Appointment::factory()->create(['status' => 'checked_in', 'start_time' => $today->clone()->addHour(), 'end_time' => $today->clone()->addHour()->addMinutes(30)]);
+        $serving = Appointment::factory()->create(['status' => 'in_treatment', 'start_time' => $today->clone()->addHours(2), 'end_time' => $today->clone()->addHours(2)->addMinutes(30)]);
+        $completed = Appointment::factory()->create(['status' => 'completed', 'start_time' => $today->clone()->addHours(3), 'end_time' => $today->clone()->addHours(3)->addMinutes(30)]);
+
+        // Outside today — must not appear in any column.
+        Appointment::factory()->create(['status' => 'scheduled', 'start_time' => $today->clone()->addDay(), 'end_time' => $today->clone()->addDay()->addMinutes(30)]);
+        Appointment::factory()->create(['status' => 'checked_in', 'start_time' => $today->clone()->subDay(), 'end_time' => $today->clone()->subDay()->addMinutes(30)]);
+
+        $response = $this->get(route('queue.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Queue/Index')
+            ->has('todaysSchedule', 1)
+            ->where('todaysSchedule.0.id', $scheduled->id)
+            ->has('waiting', 1)
+            ->where('waiting.0.id', $waiting->id)
+            ->has('nowServing', 1)
+            ->where('nowServing.0.id', $serving->id)
+            ->has('completed', 1)
+            ->where('completed.0.id', $completed->id)
+        );
+    }
+
+    public function test_index_orders_each_column_by_start_time_ascending(): void
+    {
+        $this->actingUser();
+        $today = now()->setTime(9, 0);
+
+        $later = Appointment::factory()->create(['status' => 'checked_in', 'start_time' => $today->clone()->addHours(2), 'end_time' => $today->clone()->addHours(2)->addMinutes(30)]);
+        $sooner = Appointment::factory()->create(['status' => 'checked_in', 'start_time' => $today->clone(), 'end_time' => $today->clone()->addMinutes(30)]);
+
+        $response = $this->get(route('queue.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('waiting.0.id', $sooner->id)
+            ->where('waiting.1.id', $later->id)
+        );
+    }
+
+    public function test_index_card_includes_patient_provider_and_type(): void
+    {
+        $this->actingUser();
+        $patient = \App\Models\Patient::factory()->create(['first_name' => 'Maria', 'last_name' => 'Cruz']);
+        $provider = \App\Models\Provider::factory()->create(['name' => 'Dr. Santos']);
+        Appointment::factory()->create([
+            'status' => 'scheduled',
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'type' => 'cleaning',
+            'start_time' => now()->setTime(9, 0),
+            'end_time' => now()->setTime(9, 30),
+        ]);
+
+        $response = $this->get(route('queue.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('todaysSchedule.0.patient_name', 'Maria Cruz')
+            ->where('todaysSchedule.0.provider_name', 'Dr. Santos')
+            ->where('todaysSchedule.0.type', 'cleaning')
+        );
+    }
 }
