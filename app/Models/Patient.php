@@ -32,6 +32,11 @@ class Patient extends Model
         return $this->hasMany(Appointment::class);
     }
 
+    public function dentalRecords(): HasMany
+    {
+        return $this->hasMany(DentalRecord::class)->latest('created_at');
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->first_name} {$this->last_name}");
