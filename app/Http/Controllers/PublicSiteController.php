@@ -34,4 +34,12 @@ class PublicSiteController extends Controller
             'initialService' => $request->query('service'),
         ]);
     }
+
+    public function book(Request $request): Response
+    {
+        return Inertia::render('Public/Book', [
+            'initialService' => $request->query('service'),
+            'closedDays' => array_values(config('clinic.closed_days')),
+        ]);
+    }
 }

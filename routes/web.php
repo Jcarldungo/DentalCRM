@@ -26,6 +26,7 @@ Route::get('/services', [PublicSiteController::class, 'services'])->name('servic
 Route::get('/dentists', [PublicSiteController::class, 'dentists'])->name('dentists');
 Route::get('/about', [PublicSiteController::class, 'about'])->name('about');
 Route::get('/contact', [PublicSiteController::class, 'contact'])->name('contact');
+Route::get('/book', [PublicSiteController::class, 'book'])->name('book');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])

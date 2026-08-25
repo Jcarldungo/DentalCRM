@@ -49,6 +49,23 @@ class PublicPagesTest extends TestCase
         $response->assertInertia(fn ($page) => $page->component('Public/Contact'));
     }
 
+    public function test_book_page_is_reachable_by_a_guest(): void
+    {
+        $response = $this->get(route('book'));
+
+        $response->assertOk();
+    }
+
+    public function test_book_page_receives_a_prefilled_service_from_the_query_string(): void
+    {
+        $response = $this->get(route('book', ['service' => 'Teeth Whitening']));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('initialService', 'Teeth Whitening')
+        );
+    }
+
     public function test_contact_page_passes_service_query_param_as_initial_service_prop(): void
     {
         $response = $this->get(route('contact', ['service' => 'Teeth Whitening']));
