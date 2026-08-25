@@ -422,4 +422,67 @@ class AppointmentTest extends TestCase
         $response->assertRedirect();
         $this->assertSame('declined', $request->fresh()->status);
     }
+
+    public function test_index_returns_pending_requests_oldest_preferred_date_first(): void
+    {
+        $this->actingUser();
+        $later = Appointment::factory()->requested()->create([
+            'preferred_date' => '2026-09-10',
+        ]);
+        $sooner = Appointment::factory()->requested()->create([
+            'preferred_date' => '2026-09-02',
+        ]);
+
+        $response = $this->get(route('appointments.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('requests.0.id', $sooner->id)
+            ->where('requests.1.id', $later->id)
+        );
+    }
+
+    public function test_index_excludes_non_requested_appointments_from_requests(): void
+    {
+        $this->actingUser();
+        Appointment::factory()->create(['status' => 'scheduled']);
+        Appointment::factory()->requested()->create();
+        Appointment::factory()->requested()->create(['status' => 'declined']);
+
+        $response = $this->get(route('appointments.index'));
+
+        $response->assertInertia(fn ($page) => $page->has('requests', 1));
+    }
+
+    public function test_request_payload_includes_the_details_staff_need(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create([
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'email' => 'angela@example.com',
+            'phone' => '09171234567',
+        ]);
+        Appointment::factory()->requested()->create([
+            'patient_id' => $patient->id,
+            'service_interest' => 'Root Canal Treatment',
+            'dentist_preference' => 'Dr. Elena Santos',
+            'preferred_date' => '2026-09-02',
+            'preferred_time_of_day' => 'morning',
+            'notes' => 'Upper-right tooth pain.',
+        ]);
+
+        $response = $this->get(route('appointments.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('requests.0.patient_name', 'Angela Reyes')
+            ->where('requests.0.patient_email', 'angela@example.com')
+            ->where('requests.0.patient_phone', '09171234567')
+            ->where('requests.0.service_interest', 'Root Canal Treatment')
+            ->where('requests.0.dentist_preference', 'Dr. Elena Santos')
+            ->where('requests.0.preferred_date', '2026-09-02')
+            ->where('requests.0.preferred_time_of_day', 'morning')
+            ->where('requests.0.notes', 'Upper-right tooth pain.')
+        );
+    }
 }

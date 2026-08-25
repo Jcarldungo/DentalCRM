@@ -22,6 +22,21 @@ class AppointmentController extends Controller
         return Inertia::render('Appointments/Index', [
             'patients' => Patient::orderBy('last_name')->get(['id', 'first_name', 'last_name']),
             'providers' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
+            'requests' => Appointment::with('patient')
+                ->where('status', 'requested')
+                ->orderBy('preferred_date')
+                ->get()
+                ->map(fn (Appointment $appointment) => [
+                    'id' => $appointment->id,
+                    'patient_name' => $appointment->patient->full_name,
+                    'patient_email' => $appointment->patient->email,
+                    'patient_phone' => $appointment->patient->phone,
+                    'service_interest' => $appointment->service_interest,
+                    'dentist_preference' => $appointment->dentist_preference,
+                    'preferred_date' => $appointment->preferred_date?->toDateString(),
+                    'preferred_time_of_day' => $appointment->preferred_time_of_day,
+                    'notes' => $appointment->notes,
+                ]),
         ]);
     }
 
