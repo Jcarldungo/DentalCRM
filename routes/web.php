@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
+use App\Http\Controllers\AppointmentLookupController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\InquiryController;
 use App\Http\Controllers\ProfileController;
@@ -20,6 +21,16 @@ Route::post('/contact', [InquiryController::class, 'store'])
 Route::post('/book', [BookingController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('bookings.store');
+
+// Public appointment status lookup (no account — a signed emailed link)
+Route::get('/my-appointments', [AppointmentLookupController::class, 'create'])
+    ->name('appointments.lookup.create');
+Route::post('/my-appointments', [AppointmentLookupController::class, 'send'])
+    ->middleware('throttle:6,1')
+    ->name('appointments.lookup.send');
+Route::get('/my-appointments/{patient}', [AppointmentLookupController::class, 'show'])
+    ->middleware('signed')
+    ->name('appointments.lookup.show');
 
 Route::get('/', [PublicSiteController::class, 'home'])->name('home');
 Route::get('/services', [PublicSiteController::class, 'services'])->name('services');

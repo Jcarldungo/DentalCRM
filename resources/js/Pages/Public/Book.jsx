@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import PublicLayout from '@/Layouts/PublicLayout';
 import Container from '@/Components/Public/Container';
 import SectionHeading from '@/Components/Public/SectionHeading';
@@ -73,6 +73,16 @@ export default function Book({ initialService, closedDays }) {
                         />
 
                         <ContactInfo />
+
+                        <p className="text-sm text-stone-600">
+                            Already submitted a request?{' '}
+                            <Link
+                                href={route('appointments.lookup.create')}
+                                className="font-medium text-teal-700 hover:text-teal-800"
+                            >
+                                Check its status
+                            </Link>
+                        </p>
                     </div>
 
                     <div className="rounded-lg border border-stone-200 bg-white p-8">
@@ -86,6 +96,12 @@ export default function Book({ initialService, closedDays }) {
                                     Thanks — our clinic team will review your request and get in touch to
                                     confirm a time. This is not a confirmed appointment yet.
                                 </p>
+                                <Link
+                                    href={route('appointments.lookup.create')}
+                                    className="text-sm font-medium text-teal-700 hover:text-teal-800"
+                                >
+                                    Check your appointment status
+                                </Link>
                             </div>
                         ) : (
                             <form onSubmit={submit} className="flex flex-col gap-5" noValidate>

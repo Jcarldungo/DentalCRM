@@ -55,12 +55,13 @@ database must exist before `php artisan test` will work.
 - **No SMS sending anywhere.** Mail exists but only via the `log` driver
   (`.env.example`'s `MAIL_MAILER=log`; `phpunit.xml` pins `MAIL_MAILER=array`
   for tests) — real `Mailable`/view code, nothing ever leaves the fictional
-  clinic's fake domain. `app/Mail/AppointmentConfirmed.php` and
+  clinic's fake domain. `app/Mail/AppointmentConfirmed.php`,
   `AppointmentDeclined.php` (sent from
-  `Admin\AppointmentController::update()`) are the only senders so far.
-  Anything else that would need to notify someone still surfaces in-app for
-  staff to act on, unless it specifically needs to reach a guest with no
-  account — then follow the same pattern.
+  `Admin\AppointmentController::update()`), and `AppointmentLookupLink.php`
+  (sent from `AppointmentLookupController::send()`) are the only senders so
+  far. Anything else that would need to notify someone still surfaces
+  in-app for staff to act on, unless it specifically needs to reach a
+  guest with no account — then follow the same pattern.
 - **The clinic is fictional for now**: "Harborview Dental Clinic", a
   made-up Makati address/phone, and a `.example` email domain. Don't
   introduce a real, resolvable domain — there's no real customer onboarded
@@ -88,8 +89,10 @@ aspirational, not a contract. Shipped so far: v1 (internal CRM), Phase 2
 *requests*, specced at
 `docs/superpowers/specs/2026-08-25-appointment-booking-design.md`) —
 manual staff confirm/decline, a clinic-wide per-slot capacity cap on the
-booking form, no live per-provider availability, and a confirm/decline
-email to the guest (see Hard constraints).
+booking form, no live per-provider availability, a confirm/decline email
+to the guest, and a passwordless status lookup (`/my-appointments` — email
+in, a 30-minute signed link out, no accounts) — see Hard constraints. No
+patient accounts/portal (Phase 4 proper) exist yet.
 
 ## Known gaps
 
