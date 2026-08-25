@@ -221,9 +221,9 @@ New `tests/Feature/BookingTest.php`:
   matching is case-insensitive (`John@example.com` ≡ `john@example.com` ≡
   `JOHN@EXAMPLE.COM`).
 
-Extend appointment test coverage (there is currently no
-`tests/Feature/AppointmentTest.php` at all, so this is also the first
-coverage of the existing appointment endpoints):
+Extend the existing `tests/Feature/AppointmentTest.php` (which already
+covers create/reschedule/status-update/events-feed/auth for the staff
+flow — add to it rather than starting a new file):
 - **Confirmation** — a `requested` appointment, `PATCH`-updated with real
   `start_time`/`end_time`/`provider_id`/`type`, ends up `scheduled` with
   those fields persisted correctly.
