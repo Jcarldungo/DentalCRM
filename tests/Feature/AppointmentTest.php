@@ -195,4 +195,36 @@ class AppointmentTest extends TestCase
 
         $response->assertRedirect(route('login'));
     }
+
+    public function test_a_requested_appointment_can_be_stored_without_a_time_or_provider(): void
+    {
+        $patient = Patient::factory()->create();
+
+        $appointment = Appointment::create([
+            'patient_id' => $patient->id,
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+            'status' => 'requested',
+            'service_interest' => 'Teeth Whitening',
+            'dentist_preference' => 'Dr. Elena Santos',
+            'preferred_date' => '2026-09-02',
+            'preferred_time_of_day' => 'morning',
+            'notes' => 'Upper-right tooth pain.',
+        ]);
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'requested',
+            'start_time' => null,
+            'end_time' => null,
+            'provider_id' => null,
+            'type' => null,
+            'service_interest' => 'Teeth Whitening',
+            'dentist_preference' => 'Dr. Elena Santos',
+            'preferred_time_of_day' => 'morning',
+        ]);
+        $this->assertSame('2026-09-02', $appointment->fresh()->preferred_date->toDateString());
+    }
 }

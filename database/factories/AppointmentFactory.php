@@ -30,4 +30,23 @@ class AppointmentFactory extends Factory
             'status' => 'scheduled',
         ];
     }
+
+    /**
+     * A pending guest request: no real schedule, no provider yet.
+     */
+    public function requested(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+            'status' => 'requested',
+            'service_interest' => 'Teeth Whitening',
+            'dentist_preference' => 'Dr. Elena Santos',
+            'preferred_date' => now()->addWeek()->toDateString(),
+            'preferred_time_of_day' => 'morning',
+            'notes' => null,
+        ]);
+    }
 }
