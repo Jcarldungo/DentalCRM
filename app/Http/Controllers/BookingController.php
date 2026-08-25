@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
@@ -26,6 +27,8 @@ class BookingController extends Controller
             'preferred_time_of_day' => ['required', Rule::in(Appointment::TIMES_OF_DAY)],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $this->assertSlotHasCapacity($validated['preferred_date'], $validated['preferred_time_of_day']);
 
         $patient = $this->findOrCreatePatient(
             $validated['name'],
@@ -62,6 +65,22 @@ class BookingController extends Controller
                 $fail('The clinic is closed on that day. Please choose another date.');
             }
         };
+    }
+
+    /**
+     * A closed-day date can still be a fully booked one. Checked separately
+     * from validation because it needs both the date and the time-of-day
+     * together, unlike the single-field closure rules above.
+     */
+    private function assertSlotHasCapacity(string $preferredDate, string $preferredTimeOfDay): void
+    {
+        $booked = Appointment::countBookedForSlot(Carbon::parse($preferredDate), $preferredTimeOfDay);
+
+        if ($booked >= config('clinic.max_requests_per_slot')) {
+            throw ValidationException::withMessages([
+                'preferred_time_of_day' => 'That day and time are fully booked. Please choose another date or time.',
+            ]);
+        }
     }
 
     private function findOrCreatePatient(string $name, string $email, string $phone): Patient

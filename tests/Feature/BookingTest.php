@@ -198,4 +198,101 @@ class BookingTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(0);
     }
+
+    public function test_a_request_is_rejected_once_the_slot_is_at_capacity(): void
+    {
+        config(['clinic.max_requests_per_slot' => 2]);
+        $date = $this->openDate();
+
+        Appointment::factory()->count(2)->requested()->create([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]));
+
+        $response->assertSessionHasErrors('preferred_time_of_day');
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_a_request_is_accepted_when_the_slot_is_under_capacity(): void
+    {
+        config(['clinic.max_requests_per_slot' => 2]);
+        $date = $this->openDate();
+
+        Appointment::factory()->requested()->create([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_scheduled_appointments_count_toward_slot_capacity(): void
+    {
+        config(['clinic.max_requests_per_slot' => 1]);
+        $date = $this->openDate();
+
+        Appointment::factory()->create([
+            'start_time' => Carbon::parse($date)->setTime(9, 0),
+            'end_time' => Carbon::parse($date)->setTime(9, 30),
+            'status' => 'scheduled',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]));
+
+        $response->assertSessionHasErrors('preferred_time_of_day');
+        $this->assertSame(1, Appointment::count());
+    }
+
+    public function test_declined_requests_do_not_count_toward_slot_capacity(): void
+    {
+        config(['clinic.max_requests_per_slot' => 1]);
+        $date = $this->openDate();
+
+        Appointment::factory()->requested()->create([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+            'status' => 'declined',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_slot_capacity_does_not_block_a_different_time_of_day(): void
+    {
+        config(['clinic.max_requests_per_slot' => 1]);
+        $date = $this->openDate();
+
+        Appointment::factory()->requested()->create([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'morning',
+        ]);
+
+        $response = $this->post(route('bookings.store'), $this->validPayload([
+            'preferred_date' => $date,
+            'preferred_time_of_day' => 'afternoon',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Appointment::count());
+    }
 }

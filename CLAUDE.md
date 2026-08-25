@@ -67,9 +67,13 @@ Write the spec, get it approved, then write the plan, then implement
 task-by-task with a commit per task.
 
 `docs/PLATFORM_VISION.md` is the long-range roadmap (8 phases) — it's
-aspirational, not a contract. Shipped so far: v1 (internal CRM) and
-Phase 2 (public website). Phase 3 (public appointment requests) is specced
-at `docs/superpowers/specs/2026-08-25-appointment-booking-design.md`.
+aspirational, not a contract. Shipped so far: v1 (internal CRM), Phase 2
+(public website), and a scoped slice of Phase 3 (public appointment
+*requests*, specced at
+`docs/superpowers/specs/2026-08-25-appointment-booking-design.md`) —
+manual staff confirm/decline, a clinic-wide per-slot capacity cap on the
+booking form, no live per-provider availability, no guest notifications
+yet.
 
 ## Known gaps
 

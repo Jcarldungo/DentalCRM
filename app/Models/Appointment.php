@@ -61,6 +61,42 @@ class Appointment extends Model
      * hold no slot, and cancelled/declined/no-show appointments release
      * theirs.
      */
+    /**
+     * How many appointments already occupy this date + time-of-day slot,
+     * clinic-wide: pending requests for it, plus already-scheduled
+     * appointments whose real start_time falls in that half of the day.
+     * Declined/cancelled/no-show appointments free their slot and don't
+     * count.
+     */
+    public static function countBookedForSlot(Carbon $date, string $timeOfDay): int
+    {
+        $afternoonStartsAt = config('clinic.afternoon_starts_at');
+        $dayStart = $date->clone()->startOfDay();
+        $boundary = $date->clone()->setTimeFromTimeString($afternoonStartsAt);
+        $dayEnd = $date->clone()->endOfDay();
+
+        [$rangeStart, $rangeEnd] = $timeOfDay === 'afternoon'
+            ? [$boundary, $dayEnd]
+            : [$dayStart, $boundary];
+
+        return static::query()
+            ->whereNotIn('status', self::SLOT_FREEING_STATUSES)
+            ->where(function ($query) use ($date, $timeOfDay, $rangeStart, $rangeEnd) {
+                $query
+                    ->where(function ($requested) use ($date, $timeOfDay) {
+                        $requested
+                            ->whereDate('preferred_date', $date)
+                            ->where('preferred_time_of_day', $timeOfDay);
+                    })
+                    ->orWhere(function ($scheduled) use ($rangeStart, $rangeEnd) {
+                        $scheduled
+                            ->whereNotNull('start_time')
+                            ->whereBetween('start_time', [$rangeStart, $rangeEnd]);
+                    });
+            })
+            ->count();
+    }
+
     public static function hasConflict(int $providerId, Carbon $start, Carbon $end, ?int $ignoreId = null): bool
     {
         return static::query()

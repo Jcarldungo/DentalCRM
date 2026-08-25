@@ -12,4 +12,19 @@ return [
      */
     'closed_days' => [Carbon::SUNDAY],
 
+    /*
+     * How many appointments (requested or scheduled) a single
+     * date + time-of-day slot may hold before the public booking form
+     * rejects further requests for it. Clinic-wide, not per-dentist —
+     * the public dentist picker isn't linked to real Provider rows.
+     */
+    'max_requests_per_slot' => 6,
+
+    /*
+     * The clock time, in the app's configured timezone, that separates
+     * "morning" from "afternoon" when bucketing a scheduled appointment's
+     * real start_time for slot-capacity counting.
+     */
+    'afternoon_starts_at' => '12:00',
+
 ];
