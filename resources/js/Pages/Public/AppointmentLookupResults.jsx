@@ -8,6 +8,8 @@ import { Calendar, User } from 'lucide-react';
 const STATUS_LABELS = {
     requested: 'Requested',
     scheduled: 'Confirmed',
+    checked_in: 'Checked in',
+    in_treatment: 'In treatment',
     completed: 'Completed',
     cancelled: 'Cancelled',
     no_show: 'No-show',
@@ -17,6 +19,8 @@ const STATUS_LABELS = {
 const STATUS_STYLES = {
     requested: 'bg-amber-50 text-amber-800',
     scheduled: 'bg-teal-50 text-teal-800',
+    checked_in: 'bg-sky-50 text-sky-800',
+    in_treatment: 'bg-indigo-50 text-indigo-800',
     completed: 'bg-stone-100 text-stone-700',
     cancelled: 'bg-red-50 text-red-700',
     no_show: 'bg-red-50 text-red-700',

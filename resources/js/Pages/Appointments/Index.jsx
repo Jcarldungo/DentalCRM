@@ -7,7 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const TYPES = ['checkup', 'cleaning', 'procedure', 'other'];
-const STATUSES = ['requested', 'scheduled', 'completed', 'cancelled', 'no_show', 'declined'];
+const STATUSES = ['requested', 'scheduled', 'checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show', 'declined'];
 
 export default function Index({ patients, providers, requests }) {
     const calendarRef = useRef(null);
