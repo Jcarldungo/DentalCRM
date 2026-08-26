@@ -83,6 +83,7 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
 
     function openTooth(toothNumber) {
         toothForm.reset();
+        toothForm.clearErrors();
         toothForm.setData({
             tooth_number: toothNumber,
             condition: 'healthy',
@@ -514,7 +515,7 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
                             </div>
 
                             <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => setSelectedTooth(null)} className="px-4 py-2 text-sm">
+                                <button type="button" onClick={() => { toothForm.clearErrors(); setSelectedTooth(null); }} className="px-4 py-2 text-sm">
                                     Cancel
                                 </button>
                                 <button type="submit" disabled={toothForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
