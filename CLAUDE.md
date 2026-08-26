@@ -91,20 +91,42 @@ Write the spec, get it approved, then write the plan, then implement
 task-by-task with a commit per task.
 
 `docs/PLATFORM_VISION.md` is the long-range roadmap (8 phases) — it's
-aspirational, not a contract. Shipped so far: v1 (internal CRM), Phase 2
-(public website), and a scoped slice of Phase 3 (public appointment
-*requests*, specced at
-`docs/superpowers/specs/2026-08-25-appointment-booking-design.md`) —
-manual staff confirm/decline, a clinic-wide per-slot capacity cap on the
-booking form, no live per-provider availability, a confirm/decline email
-to the guest, a passwordless status lookup (`/my-appointments` — email
-in, a 30-minute signed link out, no accounts), and a day-before reminder
-email for scheduled appointments (`appointments:send-reminders`, run
-daily at 17:00 clinic time via `routes/console.php`'s `Schedule::command`
-— `composer run dev` runs `schedule:work` locally so this actually fires
-in dev; a real deploy needs the standard Laravel cron entry calling
-`schedule:run` every minute) — see Hard constraints. No patient
-accounts/portal (Phase 4 proper) exist yet.
+aspirational, not a contract. Shipped so far:
+
+- **v1** — internal CRM (dashboard, patient management, appointment
+  management, most of Phase 1/5).
+- **Phase 2** — public website.
+- **Phase 3, scoped slice** — public appointment *requests*, specced at
+  `docs/superpowers/specs/2026-08-25-appointment-booking-design.md` —
+  manual staff confirm/decline, a clinic-wide per-slot capacity cap on
+  the booking form, no live per-provider availability, a
+  confirm/decline email to the guest, a passwordless status lookup
+  (`/my-appointments` — email in, a 30-minute signed link out, no
+  accounts), and a day-before reminder email for scheduled appointments
+  (`appointments:send-reminders`, run daily at 17:00 clinic time via
+  `routes/console.php`'s `Schedule::command` — `composer run dev` runs
+  `schedule:work` locally so this actually fires in dev; a real deploy
+  needs the standard Laravel cron entry calling `schedule:run` every
+  minute) — see Hard constraints. No patient accounts/portal (Phase 4
+  proper) exist yet.
+- **Phase 5, remaining gap** — the front-desk queue, specced at
+  `docs/superpowers/specs/2026-08-25-queue-management-design.md` — a
+  `/queue` board (Today's Schedule / Waiting / Now Serving / Completed,
+  scoped to today, ordered by `start_time`), check-in / start-treatment
+  / complete / no-show actions that all reuse the existing
+  `PATCH /appointments/{appointment}` endpoint, walk-in creation (fixed
+  30-minute block, lands straight in Waiting), and 15-second polling via
+  Inertia partial reload. No queue-number field, no new table — it's
+  the `Appointment` model plus two new statuses (`checked_in`,
+  `in_treatment`).
+- **Phase 6, sub-project 1** — patient detail page + dental records,
+  specced at `docs/superpowers/specs/2026-08-26-dental-records-design.md`
+  — `/patients/{patient}` (Overview + Dental Records tabs), and an
+  append-only `DentalRecord` model (type, examination, diagnosis,
+  procedure, notes, optional provider/appointment link) with no
+  edit/delete route or UI. This is the page structure the rest of
+  Phase 6 (odontogram, treatment plans, prescriptions, dentist
+  workspace) will attach to later — none of that exists yet.
 
 ## Known gaps
 
