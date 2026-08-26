@@ -39,7 +39,7 @@ class Patient extends Model
 
     public function toothConditions(): HasMany
     {
-        return $this->hasMany(ToothCondition::class)->latest('created_at');
+        return $this->hasMany(ToothCondition::class)->latest('created_at')->latest('id');
     }
 
     public function getFullNameAttribute(): string

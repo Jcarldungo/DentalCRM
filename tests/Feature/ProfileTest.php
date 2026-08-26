@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DentalRecord;
+use App\Models\ToothCondition;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -102,6 +103,27 @@ class ProfileTest extends TestCase
     {
         $user = User::factory()->create();
         DentalRecord::factory()->create([
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->from('/profile')
+            ->delete('/profile', [
+                'password' => 'password',
+            ]);
+
+        $response
+            ->assertSessionHasErrors('password')
+            ->assertRedirect('/profile');
+
+        $this->assertNotNull($user->fresh());
+    }
+
+    public function test_a_user_who_has_authored_a_tooth_condition_cannot_delete_their_account(): void
+    {
+        $user = User::factory()->create();
+        ToothCondition::factory()->create([
             'created_by' => $user->id,
         ]);
 

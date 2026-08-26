@@ -67,6 +67,28 @@ class ToothConditionTest extends TestCase
         $this->assertSame($older->id, $ordered->last()->id);
     }
 
+    public function test_patient_tooth_conditions_relation_breaks_same_second_ties_by_id(): void
+    {
+        $patient = Patient::factory()->create();
+        $user = User::factory()->create();
+        $sameInstant = now();
+        $first = ToothCondition::factory()->create([
+            'patient_id' => $patient->id,
+            'created_by' => $user->id,
+            'created_at' => $sameInstant,
+        ]);
+        $second = ToothCondition::factory()->create([
+            'patient_id' => $patient->id,
+            'created_by' => $user->id,
+            'created_at' => $sameInstant,
+        ]);
+
+        $ordered = $patient->toothConditions;
+
+        $this->assertSame($second->id, $ordered->first()->id);
+        $this->assertSame($first->id, $ordered->last()->id);
+    }
+
     public function test_deleting_a_patient_cascades_to_their_tooth_conditions(): void
     {
         $patient = Patient::factory()->create();

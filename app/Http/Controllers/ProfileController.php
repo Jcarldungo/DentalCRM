@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\DentalRecord;
+use App\Models\ToothCondition;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,9 +54,10 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        if (DentalRecord::where('created_by', $user->id)->exists()) {
+        if (DentalRecord::where('created_by', $user->id)->exists()
+            || ToothCondition::where('created_by', $user->id)->exists()) {
             throw ValidationException::withMessages([
-                'password' => 'This account has authored dental records and cannot be deleted.',
+                'password' => 'This account has authored clinical records and cannot be deleted.',
             ]);
         }
 
