@@ -7,6 +7,7 @@ use App\Models\DentalRecord;
 use App\Models\Patient;
 use App\Models\Provider;
 use App\Models\ToothCondition;
+use App\Models\TreatmentPlanItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -52,6 +53,22 @@ class PatientController extends Controller
                     'appointment_start_time' => $condition->appointment?->start_time?->toIso8601String(),
                     'created_at' => $condition->created_at->toIso8601String(),
                     'creator_name' => $condition->creator->name,
+                ]),
+            'treatmentPlanItems' => $patient->treatmentPlanItems()
+                ->with(['provider', 'appointment', 'creator'])
+                ->get()
+                ->map(fn (TreatmentPlanItem $item) => [
+                    'id' => $item->id,
+                    'tooth_number' => $item->tooth_number,
+                    'treatment' => $item->treatment,
+                    'estimated_cost' => $item->estimated_cost,
+                    'priority' => $item->priority,
+                    'status' => $item->status,
+                    'notes' => $item->notes,
+                    'provider_name' => $item->provider?->name,
+                    'appointment_start_time' => $item->appointment?->start_time?->toIso8601String(),
+                    'created_at' => $item->created_at->toIso8601String(),
+                    'creator_name' => $item->creator->name,
                 ]),
             'providers' => Provider::orderBy('name')->get(['id', 'name']),
             'appointments' => $patient->appointments()
