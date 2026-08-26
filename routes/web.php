@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\DentalRecordController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
+use App\Http\Controllers\Admin\ToothConditionController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
 use App\Http\Controllers\AppointmentLookupController;
 use App\Http\Controllers\BookingController;
@@ -58,6 +59,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/patients/{patient}/dental-records', [DentalRecordController::class, 'store'])
         ->name('dental-records.store');
+
+    Route::post('/patients/{patient}/tooth-conditions', [ToothConditionController::class, 'store'])
+        ->name('tooth-conditions.store');
 
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
