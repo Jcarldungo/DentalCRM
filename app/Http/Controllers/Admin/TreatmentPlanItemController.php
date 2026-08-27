@@ -9,6 +9,13 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
+/**
+ * Treatment plan items are mutable but never deletable: status, priority,
+ * estimated_cost, and notes can change via update(), but there is
+ * deliberately no destroy() here, no matching route, and no UI control to
+ * reach one. Retiring an item means setting its status to 'cancelled', not
+ * removing the row.
+ */
 class TreatmentPlanItemController extends Controller
 {
     /**
@@ -22,7 +29,7 @@ class TreatmentPlanItemController extends Controller
             'tooth_number' => ['nullable', 'integer', 'between:1,32'],
             'provider_id' => ['nullable', 'exists:providers,id'],
             'appointment_id' => ['nullable', Rule::exists('appointments', 'id')->where('patient_id', $patient->id)],
-            'estimated_cost' => ['required', 'numeric', 'min:0'],
+            'estimated_cost' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'priority' => ['required', Rule::in(TreatmentPlanItem::PRIORITIES)],
             'notes' => ['nullable', 'string'],
         ]);
@@ -54,7 +61,7 @@ class TreatmentPlanItemController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(TreatmentPlanItem::STATUSES)],
             'priority' => ['required', Rule::in(TreatmentPlanItem::PRIORITIES)],
-            'estimated_cost' => ['required', 'numeric', 'min:0'],
+            'estimated_cost' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'notes' => ['nullable', 'string'],
         ]);
 

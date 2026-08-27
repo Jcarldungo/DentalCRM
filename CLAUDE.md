@@ -126,7 +126,30 @@ aspirational, not a contract. Shipped so far:
   procedure, notes, optional provider/appointment link) with no
   edit/delete route or UI. This is the page structure the rest of
   Phase 6 (odontogram, treatment plans, prescriptions, dentist
-  workspace) will attach to later — none of that exists yet.
+  workspace) attaches to — prescriptions and the dentist workspace
+  remain unbuilt.
+- **Phase 6, sub-project 2** — dental chart / odontogram, specced at
+  `docs/superpowers/specs/2026-08-26-dental-chart-design.md` — a third
+  "Dental Chart" tab on `/patients/{patient}` showing all 32 teeth
+  (Universal numbering) in a clinical horseshoe layout, color-coded by
+  each tooth's current condition (derived client-side as its newest
+  entry, not stored); an append-only `ToothCondition` model (tooth
+  number, condition, notes, optional provider/appointment link) with no
+  edit/delete route or UI, same pattern as `DentalRecord`. No
+  per-surface (mesial/distal/etc.) charting.
+- **Phase 6, sub-project 3** — treatment plans, specced at
+  `docs/superpowers/specs/2026-08-26-treatment-plans-design.md` — a
+  fourth "Treatment Plan" tab on `/patients/{patient}` listing every
+  proposed treatment for that patient, grouped client-side into Active
+  (`planned`/`scheduled`/`in_progress`) and Resolved
+  (`completed`/`cancelled`). Unlike `DentalRecord`/`ToothCondition`, the
+  `TreatmentPlanItem` model is mutable: `status`, `priority`,
+  `estimated_cost`, and `notes` can change via
+  `PATCH /patients/{patient}/treatment-plan-items/{treatmentPlanItem}`,
+  but `treatment`, `tooth_number`, `provider_id`, and `appointment_id`
+  are fixed at creation. No delete, ever, and no grouping/parent
+  "Treatment Plan" entity — a patient's plan is just all their
+  `TreatmentPlanItem` rows.
 
 ## Known gaps
 
