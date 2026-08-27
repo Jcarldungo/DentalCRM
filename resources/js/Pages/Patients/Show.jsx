@@ -45,11 +45,69 @@ function currentConditionFor(toothConditions, toothNumber) {
     return toothConditions.find((c) => c.tooth_number === toothNumber) ?? null;
 }
 
-export default function Show({ patient, dentalRecords, toothConditions, providers, appointments }) {
+const TREATMENT_PRIORITIES = ['low', 'medium', 'high'];
+const TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress', 'completed', 'cancelled'];
+const ACTIVE_TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress'];
+const ALL_TEETH = [...UPPER_TEETH, ...LOWER_TEETH].sort((a, b) => a - b);
+
+const PRIORITY_COLORS = {
+    low: 'bg-gray-100 text-gray-700 border-gray-300',
+    medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    high: 'bg-red-100 text-red-800 border-red-300',
+};
+
+const STATUS_COLORS = {
+    planned: 'bg-gray-100 text-gray-700 border-gray-300',
+    scheduled: 'bg-blue-100 text-blue-800 border-blue-300',
+    in_progress: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    completed: 'bg-green-100 text-green-800 border-green-300',
+    cancelled: 'bg-gray-300 text-gray-600 border-gray-400 line-through',
+};
+
+function formatPeso(amount) {
+    return `₱${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function TreatmentPlanItemCard({ item, onEdit }) {
+    return (
+        <div className="bg-white shadow rounded p-4 text-sm">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <div className="font-medium">{item.treatment}</div>
+                    <div className="text-gray-500">
+                        {item.tooth_number ? `Tooth ${item.tooth_number}` : 'Whole mouth'}
+                        {item.provider_name && ` · ${item.provider_name}`}
+                        {item.appointment_start_time && ` · linked to ${formatDateTime(item.appointment_start_time)}`}
+                    </div>
+                </div>
+                <button type="button" onClick={onEdit} className="text-sm text-blue-600 shrink-0">
+                    Edit
+                </button>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="font-medium">{formatPeso(item.estimated_cost)}</span>
+                <span className={`inline-block rounded border px-2 py-0.5 text-xs ${PRIORITY_COLORS[item.priority]}`}>
+                    {item.priority}
+                </span>
+                <span className={`inline-block rounded border px-2 py-0.5 text-xs ${STATUS_COLORS[item.status]}`}>
+                    {item.status.replace('_', ' ')}
+                </span>
+            </div>
+            {item.notes && <p className="mt-2">{item.notes}</p>}
+            <div className="mt-3 text-xs text-gray-400">
+                Logged by {item.creator_name} on {formatDate(item.created_at)}
+            </div>
+        </div>
+    );
+}
+
+export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, providers, appointments }) {
     const [tab, setTab] = useState('overview');
     const [showEditModal, setShowEditModal] = useState(false);
     const [showRecordModal, setShowRecordModal] = useState(false);
     const [selectedTooth, setSelectedTooth] = useState(null);
+    const [showTreatmentModal, setShowTreatmentModal] = useState(false);
+    const [editingTreatmentItem, setEditingTreatmentItem] = useState(null);
 
     const patientForm = useForm({
         first_name: patient.first_name,
@@ -101,6 +159,62 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
             onSuccess: () => {
                 toothForm.reset();
                 setSelectedTooth(null);
+            },
+        });
+    }
+
+    const treatmentForm = useForm({
+        treatment: '',
+        tooth_number: '',
+        provider_id: '',
+        appointment_id: '',
+        estimated_cost: '',
+        priority: 'medium',
+        notes: '',
+    });
+
+    const treatmentEditForm = useForm({
+        status: 'planned',
+        priority: 'medium',
+        estimated_cost: '',
+        notes: '',
+    });
+
+    function openTreatmentModal() {
+        treatmentForm.reset();
+        treatmentForm.clearErrors();
+        setShowTreatmentModal(true);
+    }
+
+    function submitTreatment(e) {
+        e.preventDefault();
+        treatmentForm.post(route('treatment-plan-items.store', patient.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                treatmentForm.reset();
+                setShowTreatmentModal(false);
+            },
+        });
+    }
+
+    function openTreatmentEdit(item) {
+        treatmentEditForm.clearErrors();
+        treatmentEditForm.setData({
+            status: item.status,
+            priority: item.priority,
+            estimated_cost: item.estimated_cost,
+            notes: item.notes ?? '',
+        });
+        setEditingTreatmentItem(item);
+    }
+
+    function submitTreatmentEdit(e) {
+        e.preventDefault();
+        treatmentEditForm.patch(route('treatment-plan-items.update', { patient: patient.id, treatmentPlanItem: editingTreatmentItem.id }), {
+            preserveScroll: true,
+            onSuccess: () => {
+                treatmentEditForm.reset();
+                setEditingTreatmentItem(null);
             },
         });
     }
@@ -162,6 +276,13 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
                         className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
                     >
                         Dental Chart
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setTab('treatment')}
+                        className={`pb-2 text-sm font-medium ${tab === 'treatment' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
+                    >
+                        Treatment Plan
                     </button>
                 </div>
 
@@ -291,6 +412,43 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
                                     {c.replace('_', ' ')}
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {tab === 'treatment' && (
+                    <div>
+                        <button
+                            type="button"
+                            onClick={openTreatmentModal}
+                            className="mb-4 rounded bg-gray-900 px-4 py-2 text-white"
+                        >
+                            + New Treatment Item
+                        </button>
+
+                        <div className="space-y-6">
+                            <div>
+                                <h4 className="mb-2 text-sm font-semibold text-gray-500">Active</h4>
+                                <div className="space-y-3">
+                                    {treatmentPlanItems.filter((item) => ACTIVE_TREATMENT_STATUSES.includes(item.status)).map((item) => (
+                                        <TreatmentPlanItemCard key={item.id} item={item} onEdit={() => openTreatmentEdit(item)} />
+                                    ))}
+                                    {treatmentPlanItems.filter((item) => ACTIVE_TREATMENT_STATUSES.includes(item.status)).length === 0 && (
+                                        <div className="bg-white shadow rounded p-4 text-sm text-gray-500">No active treatment items.</div>
+                                    )}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="mb-2 text-sm font-semibold text-gray-500">Resolved</h4>
+                                <div className="space-y-3">
+                                    {treatmentPlanItems.filter((item) => !ACTIVE_TREATMENT_STATUSES.includes(item.status)).map((item) => (
+                                        <TreatmentPlanItemCard key={item.id} item={item} onEdit={() => openTreatmentEdit(item)} />
+                                    ))}
+                                    {treatmentPlanItems.filter((item) => !ACTIVE_TREATMENT_STATUSES.includes(item.status)).length === 0 && (
+                                        <div className="bg-white shadow rounded p-4 text-sm text-gray-500">No resolved treatment items.</div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -524,6 +682,181 @@ export default function Show({ patient, dentalRecords, toothConditions, provider
                             </div>
                         </form>
                     </div>
+                </div>
+            )}
+
+            {showTreatmentModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
+                    <form onSubmit={submitTreatment} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
+                        <h3 className="font-semibold">New treatment item</h3>
+
+                        <div>
+                            <label className="block text-sm mb-1">Treatment</label>
+                            <input
+                                type="text"
+                                className="w-full border rounded px-3 py-2"
+                                value={treatmentForm.data.treatment}
+                                onChange={(e) => treatmentForm.setData('treatment', e.target.value)}
+                            />
+                            {treatmentForm.errors.treatment && <p className="text-sm text-red-600">{treatmentForm.errors.treatment}</p>}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1">Tooth (optional)</label>
+                                <select
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentForm.data.tooth_number}
+                                    onChange={(e) => treatmentForm.setData('tooth_number', e.target.value)}
+                                >
+                                    <option value="">Whole mouth</option>
+                                    {ALL_TEETH.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                                {treatmentForm.errors.tooth_number && <p className="text-sm text-red-600">{treatmentForm.errors.tooth_number}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1">Priority</label>
+                                <select
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentForm.data.priority}
+                                    onChange={(e) => treatmentForm.setData('priority', e.target.value)}
+                                >
+                                    {TREATMENT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                {treatmentForm.errors.priority && <p className="text-sm text-red-600">{treatmentForm.errors.priority}</p>}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1">Provider</label>
+                                <select
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentForm.data.provider_id}
+                                    onChange={(e) => treatmentForm.setData('provider_id', e.target.value)}
+                                >
+                                    <option value="">No provider</option>
+                                    {providers.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                                {treatmentForm.errors.provider_id && <p className="text-sm text-red-600">{treatmentForm.errors.provider_id}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1">Estimated cost (₱)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentForm.data.estimated_cost}
+                                    onChange={(e) => treatmentForm.setData('estimated_cost', e.target.value)}
+                                />
+                                {treatmentForm.errors.estimated_cost && <p className="text-sm text-red-600">{treatmentForm.errors.estimated_cost}</p>}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm mb-1">Link to appointment (optional)</label>
+                            <select
+                                className="w-full border rounded px-3 py-2"
+                                value={treatmentForm.data.appointment_id}
+                                onChange={(e) => treatmentForm.setData('appointment_id', e.target.value)}
+                            >
+                                <option value="">No linked appointment</option>
+                                {appointments.map((a) => (
+                                    <option key={a.id} value={a.id}>
+                                        {a.start_time ? formatDateTime(a.start_time) : 'Unscheduled'} — {a.type ?? 'request'}
+                                    </option>
+                                ))}
+                            </select>
+                            {treatmentForm.errors.appointment_id && <p className="text-sm text-red-600">{treatmentForm.errors.appointment_id}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm mb-1">Notes</label>
+                            <textarea
+                                className="w-full border rounded px-3 py-2"
+                                rows={2}
+                                value={treatmentForm.data.notes}
+                                onChange={(e) => treatmentForm.setData('notes', e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => { treatmentForm.clearErrors(); setShowTreatmentModal(false); }} className="px-4 py-2 text-sm">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={treatmentForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
+                                Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {editingTreatmentItem && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
+                    <form onSubmit={submitTreatmentEdit} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
+                        <h3 className="font-semibold">Edit: {editingTreatmentItem.treatment}</h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1">Status</label>
+                                <select
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentEditForm.data.status}
+                                    onChange={(e) => treatmentEditForm.setData('status', e.target.value)}
+                                >
+                                    {TREATMENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                                </select>
+                                {treatmentEditForm.errors.status && <p className="text-sm text-red-600">{treatmentEditForm.errors.status}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1">Priority</label>
+                                <select
+                                    className="w-full border rounded px-3 py-2"
+                                    value={treatmentEditForm.data.priority}
+                                    onChange={(e) => treatmentEditForm.setData('priority', e.target.value)}
+                                >
+                                    {TREATMENT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                {treatmentEditForm.errors.priority && <p className="text-sm text-red-600">{treatmentEditForm.errors.priority}</p>}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm mb-1">Estimated cost (₱)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="w-full border rounded px-3 py-2"
+                                value={treatmentEditForm.data.estimated_cost}
+                                onChange={(e) => treatmentEditForm.setData('estimated_cost', e.target.value)}
+                            />
+                            {treatmentEditForm.errors.estimated_cost && <p className="text-sm text-red-600">{treatmentEditForm.errors.estimated_cost}</p>}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm mb-1">Notes</label>
+                            <textarea
+                                className="w-full border rounded px-3 py-2"
+                                rows={2}
+                                value={treatmentEditForm.data.notes}
+                                onChange={(e) => treatmentEditForm.setData('notes', e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => { treatmentEditForm.clearErrors(); setEditingTreatmentItem(null); }} className="px-4 py-2 text-sm">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={treatmentEditForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
+                                Save
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </AuthenticatedLayout>
