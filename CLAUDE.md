@@ -11,16 +11,20 @@ data eventually.
 
 ## Environment (Windows + Herd)
 
-`php` and `composer` are **not on PATH** in the Bash tool. The README's
-mention of XAMPP is stale — this machine runs Laravel Herd. Use:
+The README's mention of XAMPP is stale — this runs **Laravel Herd**
+(PHP 8.4). The Herd `bin` dir differs per machine only by Windows profile
+name (`Jann Carl` at home, `JC` at work), so address it through `$HOME`,
+which Git Bash resolves on either machine:
 
 ```bash
-"/c/Users/JC/.config/herd/bin/php.bat" artisan test
-"/c/Users/JC/.config/herd/bin/composer.bat" install
+"$HOME/.config/herd/bin/php.bat" artisan test
+"$HOME/.config/herd/bin/composer.bat" install
 ```
 
-`npm` is on PATH normally. Run everything from the repo root
-(`C:\dev JC\DentalCRM`).
+`php.bat` alone also works (Herd puts its bin on PATH); bare `composer`
+does **not** — a stale XAMPP shim can shadow it, so always use the
+`$HOME` path above for Composer. `npm` is on PATH normally. Run
+everything from the repo root (`C:\dev\DentalCRM` at home).
 
 To see the app: `php artisan serve` (:8000) plus `npm run dev` (Vite, :5173)
 in parallel — or `composer run dev` for both plus queue/logs.
