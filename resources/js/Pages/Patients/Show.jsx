@@ -1,26 +1,10 @@
 import { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { formatDate, formatDateTime, formatPeso } from './format';
+import PrescriptionsTab from './PrescriptionsTab';
 
 const TYPES = ['consultation', 'procedure', 'follow_up', 'other'];
-
-function formatDateTime(iso) {
-    return new Date(iso).toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
-}
-
-function formatDate(iso) {
-    return new Date(iso).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
-}
 
 const TOOTH_CONDITIONS = ['healthy', 'caries', 'filling', 'crown', 'missing', 'extraction', 'root_canal', 'implant', 'other'];
 
@@ -64,10 +48,6 @@ const STATUS_COLORS = {
     cancelled: 'bg-gray-300 text-gray-600 border-gray-400 line-through',
 };
 
-function formatPeso(amount) {
-    return `₱${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function TreatmentPlanItemCard({ item, onEdit }) {
     return (
         <div className="bg-white shadow rounded p-4 text-sm">
@@ -101,7 +81,7 @@ function TreatmentPlanItemCard({ item, onEdit }) {
     );
 }
 
-export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, providers, appointments }) {
+export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, prescriptions, providers, appointments }) {
     const [tab, setTab] = useState('overview');
     const [showEditModal, setShowEditModal] = useState(false);
     const [showRecordModal, setShowRecordModal] = useState(false);
@@ -284,6 +264,13 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
                     >
                         Treatment Plan
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => setTab('prescriptions')}
+                        className={`pb-2 text-sm font-medium ${tab === 'prescriptions' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
+                    >
+                        Prescriptions
+                    </button>
                 </div>
 
                 {tab === 'overview' && (
@@ -451,6 +438,15 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
                             </div>
                         </div>
                     </div>
+                )}
+
+                {tab === 'prescriptions' && (
+                    <PrescriptionsTab
+                        patient={patient}
+                        prescriptions={prescriptions}
+                        providers={providers}
+                        appointments={appointments}
+                    />
                 )}
             </div>
 

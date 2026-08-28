@@ -154,6 +154,24 @@ aspirational, not a contract. Shipped so far:
   are fixed at creation. No delete, ever, and no grouping/parent
   "Treatment Plan" entity — a patient's plan is just all their
   `TreatmentPlanItem` rows.
+- **Phase 6, sub-project 4** — prescriptions, specced at
+  `docs/superpowers/specs/2026-08-28-prescriptions-design.md` — a fifth
+  "Prescriptions" tab on `/patients/{patient}` listing a patient's
+  prescribed medications, grouped client-side into Active and
+  Discontinued. One medication per `Prescription` row (no
+  header/line-item parent). Clinical content — `medication`, `dosage`,
+  `frequency`, `duration`, `quantity`, `instructions`, `provider_id`,
+  `appointment_id` — is fixed at creation; the only post-creation change
+  is a one-way `active → discontinued` flip via
+  `PATCH /patients/{patient}/prescriptions/{prescription}` (the
+  discontinue action, which also records `discontinued_at` and an
+  optional `discontinued_reason`, and 403s if already discontinued). No
+  delete, ever. Nothing is transmitted anywhere — a printable
+  prescription slip is a plausible future slice, not built. The three
+  shared date/peso formatters were extracted from `Patients/Show.jsx`
+  into `resources/js/Pages/Patients/format.js`; the new tab body lives
+  in its own `PrescriptionsTab.jsx` component (the other four tab bodies
+  remain inline in `Show.jsx`).
 
 ## Known gaps
 
