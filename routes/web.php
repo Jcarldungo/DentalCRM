@@ -74,6 +74,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/patients/{patient}/prescriptions', [PrescriptionController::class, 'store'])
         ->name('prescriptions.store');
 
+    Route::patch('/patients/{patient}/prescriptions/{prescription}', [PrescriptionController::class, 'update'])
+        ->name('prescriptions.update');
+
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
     Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');

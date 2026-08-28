@@ -252,4 +252,92 @@ class PrescriptionTest extends TestCase
         $response->assertSessionHasErrors('provider_id');
         $this->assertSame(0, Prescription::count());
     }
+
+    public function test_guest_cannot_discontinue_a_prescription(): void
+    {
+        $rx = Prescription::factory()->create();
+
+        $response = $this->patch(route('prescriptions.update', ['patient' => $rx->patient_id, 'prescription' => $rx->id]), [
+            'discontinued_reason' => 'Course completed',
+        ]);
+
+        $response->assertRedirect(route('login'));
+        $this->assertSame('active', $rx->fresh()->status);
+    }
+
+    public function test_discontinue_sets_status_timestamp_and_reason(): void
+    {
+        $this->actingUser();
+        $rx = Prescription::factory()->create();
+
+        $response = $this->patch(route('prescriptions.update', ['patient' => $rx->patient_id, 'prescription' => $rx->id]), [
+            'discontinued_reason' => 'Patient reported a rash',
+        ]);
+
+        $response->assertRedirect();
+        $rx->refresh();
+        $this->assertSame('discontinued', $rx->status);
+        $this->assertNotNull($rx->discontinued_at);
+        $this->assertSame('Patient reported a rash', $rx->discontinued_reason);
+    }
+
+    public function test_discontinue_reason_is_optional(): void
+    {
+        $this->actingUser();
+        $rx = Prescription::factory()->create();
+
+        $response = $this->patch(route('prescriptions.update', ['patient' => $rx->patient_id, 'prescription' => $rx->id]), []);
+
+        $response->assertRedirect();
+        $rx->refresh();
+        $this->assertSame('discontinued', $rx->status);
+        $this->assertNull($rx->discontinued_reason);
+    }
+
+    public function test_discontinue_ignores_drug_fields_in_the_request_body(): void
+    {
+        $this->actingUser();
+        $rx = Prescription::factory()->create([
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+        ]);
+
+        $this->patch(route('prescriptions.update', ['patient' => $rx->patient_id, 'prescription' => $rx->id]), [
+            'medication' => 'HACKED',
+            'dosage' => 'HACKED',
+            'status' => 'active',
+        ]);
+
+        $rx->refresh();
+        $this->assertSame('Amoxicillin', $rx->medication);
+        $this->assertSame('500 mg', $rx->dosage);
+        $this->assertSame('discontinued', $rx->status);
+    }
+
+    public function test_discontinue_is_one_way(): void
+    {
+        $this->actingUser();
+        $rx = Prescription::factory()->discontinued()->create(['discontinued_reason' => 'Original reason']);
+
+        $response = $this->patch(route('prescriptions.update', ['patient' => $rx->patient_id, 'prescription' => $rx->id]), [
+            'discontinued_reason' => 'Second attempt',
+        ]);
+
+        $response->assertForbidden();
+        $this->assertSame('Original reason', $rx->fresh()->discontinued_reason);
+    }
+
+    public function test_discontinue_for_a_prescription_belonging_to_a_different_patient_404s(): void
+    {
+        $this->actingUser();
+        $otherPatient = Patient::factory()->create();
+        $rx = Prescription::factory()->create();
+
+        $response = $this->patch(route('prescriptions.update', ['patient' => $otherPatient->id, 'prescription' => $rx->id]), [
+            'discontinued_reason' => 'Course completed',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertSame('active', $rx->fresh()->status);
+    }
 }
