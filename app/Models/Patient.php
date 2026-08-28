@@ -47,6 +47,11 @@ class Patient extends Model
         return $this->hasMany(TreatmentPlanItem::class)->oldest('created_at')->oldest('id');
     }
 
+    public function prescriptions(): HasMany
+    {
+        return $this->hasMany(Prescription::class)->latest('created_at')->latest('id');
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->first_name} {$this->last_name}");
