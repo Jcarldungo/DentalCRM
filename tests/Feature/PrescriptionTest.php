@@ -100,4 +100,156 @@ class PrescriptionTest extends TestCase
         $this->assertSame('discontinued', $rx->status);
         $this->assertNotNull($rx->discontinued_at);
     }
+
+    public function test_guest_cannot_create_a_prescription(): void
+    {
+        $patient = Patient::factory()->create();
+
+        $response = $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+            'frequency' => '3 times daily',
+        ]);
+
+        $response->assertRedirect(route('login'));
+        $this->assertSame(0, Prescription::count());
+    }
+
+    public function test_a_prescription_can_be_created(): void
+    {
+        $user = $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        $response = $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+            'frequency' => '3 times daily',
+            'duration' => '7 days',
+            'quantity' => '21 capsules',
+            'instructions' => 'Take after meals. Finish the full course.',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(1, Prescription::count());
+        $rx = Prescription::first();
+        $this->assertSame($patient->id, $rx->patient_id);
+        $this->assertSame('Amoxicillin', $rx->medication);
+        $this->assertSame('500 mg', $rx->dosage);
+        $this->assertSame('3 times daily', $rx->frequency);
+        $this->assertSame('7 days', $rx->duration);
+        $this->assertSame('21 capsules', $rx->quantity);
+        $this->assertSame('Take after meals. Finish the full course.', $rx->instructions);
+        $this->assertSame('active', $rx->status);
+        $this->assertNull($rx->discontinued_at);
+        $this->assertNull($rx->provider_id);
+        $this->assertNull($rx->appointment_id);
+        $this->assertSame($user->id, $rx->created_by);
+    }
+
+    public function test_created_by_is_always_the_authenticated_user_even_if_the_request_supplies_a_different_value(): void
+    {
+        $user = $this->actingUser();
+        $otherUser = User::factory()->create();
+        $patient = Patient::factory()->create();
+
+        $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Ibuprofen',
+            'dosage' => '400 mg',
+            'frequency' => 'Every 8 hours',
+            'created_by' => $otherUser->id,
+        ]);
+
+        $this->assertSame($user->id, Prescription::first()->created_by);
+    }
+
+    public function test_status_is_always_active_on_create_regardless_of_request(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Ibuprofen',
+            'dosage' => '400 mg',
+            'frequency' => 'Every 8 hours',
+            'status' => 'discontinued',
+        ]);
+
+        $this->assertSame('active', Prescription::first()->status);
+    }
+
+    public function test_a_missing_required_field_is_rejected(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $complete = [
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+            'frequency' => '3 times daily',
+        ];
+
+        foreach (['medication', 'dosage', 'frequency'] as $missing) {
+            $payload = $complete;
+            unset($payload[$missing]);
+
+            $response = $this->post(route('prescriptions.store', $patient), $payload);
+
+            $response->assertSessionHasErrors($missing);
+        }
+
+        $this->assertSame(0, Prescription::count());
+    }
+
+    public function test_a_prescription_can_be_created_with_a_provider_and_appointment(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $provider = Provider::factory()->create();
+        $appointment = Appointment::factory()->create(['patient_id' => $patient->id]);
+
+        $response = $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Metronidazole',
+            'dosage' => '400 mg',
+            'frequency' => '3 times daily',
+            'provider_id' => $provider->id,
+            'appointment_id' => $appointment->id,
+        ]);
+
+        $response->assertRedirect();
+        $rx = Prescription::first();
+        $this->assertSame($provider->id, $rx->provider_id);
+        $this->assertSame($appointment->id, $rx->appointment_id);
+    }
+
+    public function test_an_appointment_belonging_to_a_different_patient_is_rejected(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $otherPatientsAppointment = Appointment::factory()->create();
+
+        $response = $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+            'frequency' => '3 times daily',
+            'appointment_id' => $otherPatientsAppointment->id,
+        ]);
+
+        $response->assertSessionHasErrors('appointment_id');
+        $this->assertSame(0, Prescription::count());
+    }
+
+    public function test_a_nonexistent_provider_is_rejected(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        $response = $this->post(route('prescriptions.store', $patient), [
+            'medication' => 'Amoxicillin',
+            'dosage' => '500 mg',
+            'frequency' => '3 times daily',
+            'provider_id' => 999999,
+        ]);
+
+        $response->assertSessionHasErrors('provider_id');
+        $this->assertSame(0, Prescription::count());
+    }
 }

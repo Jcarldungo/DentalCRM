@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DentalRecordController;
 use App\Http\Controllers\Admin\PatientController;
+use App\Http\Controllers\Admin\PrescriptionController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
 use App\Http\Controllers\Admin\ToothConditionController;
@@ -69,6 +70,9 @@ Route::middleware('auth')->group(function () {
 
     Route::patch('/patients/{patient}/treatment-plan-items/{treatmentPlanItem}', [TreatmentPlanItemController::class, 'update'])
         ->name('treatment-plan-items.update');
+
+    Route::post('/patients/{patient}/prescriptions', [PrescriptionController::class, 'store'])
+        ->name('prescriptions.store');
 
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/events', [AppointmentController::class, 'events'])->name('appointments.events');
