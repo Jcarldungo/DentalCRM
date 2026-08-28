@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\DentalRecord;
 use App\Models\Patient;
+use App\Models\Prescription;
 use App\Models\Provider;
 use App\Models\ToothCondition;
 use App\Models\TreatmentPlanItem;
@@ -69,6 +70,25 @@ class PatientController extends Controller
                     'appointment_start_time' => $item->appointment?->start_time?->toIso8601String(),
                     'created_at' => $item->created_at->toIso8601String(),
                     'creator_name' => $item->creator->name,
+                ]),
+            'prescriptions' => $patient->prescriptions()
+                ->with(['provider', 'appointment', 'creator'])
+                ->get()
+                ->map(fn (Prescription $rx) => [
+                    'id' => $rx->id,
+                    'medication' => $rx->medication,
+                    'dosage' => $rx->dosage,
+                    'frequency' => $rx->frequency,
+                    'duration' => $rx->duration,
+                    'quantity' => $rx->quantity,
+                    'instructions' => $rx->instructions,
+                    'status' => $rx->status,
+                    'discontinued_at' => $rx->discontinued_at?->toIso8601String(),
+                    'discontinued_reason' => $rx->discontinued_reason,
+                    'provider_name' => $rx->provider?->name,
+                    'appointment_start_time' => $rx->appointment?->start_time?->toIso8601String(),
+                    'created_at' => $rx->created_at->toIso8601String(),
+                    'creator_name' => $rx->creator->name,
                 ]),
             'providers' => Provider::orderBy('name')->get(['id', 'name']),
             'appointments' => $patient->appointments()

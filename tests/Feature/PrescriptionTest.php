@@ -340,4 +340,69 @@ class PrescriptionTest extends TestCase
         $response->assertNotFound();
         $this->assertSame('active', $rx->fresh()->status);
     }
+
+    public function test_show_page_lists_the_patients_prescriptions_newest_first(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $older = Prescription::factory()->create(['patient_id' => $patient->id, 'created_at' => now()->subDay()]);
+        $newer = Prescription::factory()->discontinued()->create(['patient_id' => $patient->id, 'created_at' => now()]);
+
+        $response = $this->get(route('patients.show', $patient));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Patients/Show')
+            ->has('prescriptions', 2)
+            ->where('prescriptions.0.id', $newer->id)
+            ->where('prescriptions.0.status', 'discontinued')
+            ->where('prescriptions.1.id', $older->id)
+            ->where('prescriptions.1.status', 'active')
+        );
+    }
+
+    public function test_show_page_does_not_include_another_patients_prescriptions(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $otherPatient = Patient::factory()->create();
+        Prescription::factory()->create(['patient_id' => $otherPatient->id]);
+
+        $response = $this->get(route('patients.show', $patient));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Patients/Show')
+            ->has('prescriptions', 0)
+        );
+    }
+
+    public function test_show_page_prescription_shape(): void
+    {
+        $user = $this->actingUser();
+        $patient = Patient::factory()->create();
+        $provider = Provider::factory()->create(['name' => 'Dr. Reyes']);
+        $appointment = Appointment::factory()->create(['patient_id' => $patient->id]);
+        Prescription::factory()->create([
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+            'appointment_id' => $appointment->id,
+            'medication' => 'Amoxicillin',
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->get(route('patients.show', $patient));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('prescriptions.0.medication', 'Amoxicillin')
+            ->where('prescriptions.0.provider_name', 'Dr. Reyes')
+            ->where('prescriptions.0.creator_name', $user->name)
+            ->whereNot('prescriptions.0.appointment_start_time', null)
+        );
+    }
+
+    public function test_no_delete_route_exists_for_prescriptions(): void
+    {
+        $this->assertFalse(Route::has('prescriptions.destroy'));
+    }
 }
