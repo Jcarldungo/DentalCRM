@@ -203,6 +203,24 @@ aspirational, not a contract. Shipped so far:
   with status filters, and a dashboard outstanding-balances tile.
   Nothing is transmitted — no receipt slip. No refunds, deposits, tax,
   or revenue reporting yet.
+- **Phase 7, sub-project 2** — reports & analytics, specced at
+  `docs/superpowers/specs/2026-08-30-reports-analytics-design.md` — a
+  read-only `Admin\ReportsController@index` (`GET /reports`, no model or
+  migration) rendering `Reports/Index`: a date-range selector
+  (`this_month` default / `last_month` / `this_quarter` / `ytd` /
+  `last_12_months` / `custom` with a 400-day cap) resolved server-side to
+  `[start, end]` UTC bounds, a time-series bucket granularity
+  (day ≤ 31d, week ≤ 180d, else month) applied to every trend and
+  gap-filled, and three sections of SQL aggregates — Revenue (collected
+  vs invoiced vs outstanding-A/R, collected-over-time, by-provider and
+  by-treatment on the invoiced basis, payment-method mix), Appointments
+  (volume, status breakdown excluding `requested`, completion/
+  cancellation/no-show rates, by-provider, by-type), Patients (new over
+  time, returning vs first-visit, no-show patients). Charts render with
+  a new lazy-chunked `recharts` dependency (area for trends, horizontal
+  bars for breakdowns; stat tiles for headline numbers). Behind `auth`
+  only — every staff member sees the whole report. Treatments-section
+  analytics, recall-adherence, and any export (CSV/PDF) are deferred.
 
 ## Known gaps
 
@@ -243,3 +261,16 @@ aspirational, not a contract. Shipped so far:
   `InvoiceController::linkableTreatmentItems()` and `BillingTab.jsx` —
   same docblock-sync situation as the appointment/treatment status
   sets already noted.
+- Every `/reports` query is unbounded and unpaginated; by-provider /
+  by-treatment load all matching `invoice_items` for the range, and
+  outstanding-A/R re-derives `balance()` by loading every issued invoice
+  with its items and payments (same accepted O(n) pattern as the
+  dashboard tile). Fine at demo scale; a multi-year dataset would want
+  summary tables or date-partitioned indexes on `payments.paid_on`,
+  `invoices.issued_at`, `appointments.start_time`.
+- Reports "invoiced revenue by provider" is gross of invoice-level
+  discount (a discount is not allocable to one line/provider); the
+  invoiced *total* is net. Both are labelled in the UI.
+- Reports date ranges are UTC boundaries — no timezone handling, so a
+  non-UTC clinic sees report days roll over off-midnight local. Matches
+  the rest of the app.
