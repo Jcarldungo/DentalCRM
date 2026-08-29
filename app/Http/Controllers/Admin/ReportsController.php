@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Provider;
@@ -55,7 +56,7 @@ class ReportsController extends Controller
                 'bucket' => $bucket,
             ],
             'revenue' => $this->revenue($start, $end, $bucket),
-            'appointments' => [],
+            'appointments' => $this->appointments($start, $end, $bucket),
             'patients' => [],
         ]);
     }
@@ -251,6 +252,77 @@ class ReportsController extends Controller
             'value' => round((float) ($rows[$m]->total ?? 0), 2),
             'count' => (int) ($rows[$m]->count ?? 0),
         ])->all();
+    }
+
+    /**
+     * The Appointments section. Every figure excludes pending guest
+     * requests via `where('status', '!=', 'requested')` — a `requested`
+     * row has no schedule or provider yet, so it is not a real
+     * appointment for volume, rate, or provider/type purposes.
+     */
+    private function appointments(Carbon $start, Carbon $end, string $bucket): array
+    {
+        $base = fn () => Appointment::query()
+            ->where('status', '!=', 'requested')
+            ->whereBetween('start_time', [$start, $end]);
+
+        $keys = $this->bucketKeys($start, $end, $bucket);
+        $volumeByBucket = $base()
+            ->selectRaw($this->bucketExpr('start_time', $bucket).' as bucket, COUNT(*) as total')
+            ->groupBy('bucket')
+            ->pluck('total', 'bucket')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $statusRows = $base()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $statuses = ['scheduled', 'checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show', 'declined'];
+        $statusBreakdown = array_map(
+            fn (string $s) => ['label' => $s, 'value' => (int) ($statusRows[$s] ?? 0)],
+            $statuses,
+        );
+
+        $total = array_sum(array_column($statusBreakdown, 'value'));
+        $rate = fn (int $n) => $total > 0 ? round($n / $total, 4) : 0.0;
+        $cancelled = (int) ($statusRows['cancelled'] ?? 0) + (int) ($statusRows['declined'] ?? 0);
+
+        $providerRows = $base()
+            ->selectRaw("provider_id, COUNT(*) as total, SUM(status = 'completed') as completed, SUM(status = 'no_show') as no_show")
+            ->groupBy('provider_id')
+            ->get();
+        $names = Provider::whereIn('id', $providerRows->pluck('provider_id')->filter())->pluck('name', 'id');
+        $byProvider = $providerRows
+            ->map(fn ($r) => [
+                'label' => $r->provider_id ? ($names[$r->provider_id] ?? 'Unknown') : 'Unassigned',
+                'total' => (int) $r->total,
+                'completed' => (int) $r->completed,
+                'no_show' => (int) $r->no_show,
+            ])
+            ->sortByDesc('total')
+            ->values()
+            ->all();
+
+        $typeRows = $base()->selectRaw('type, COUNT(*) as total')->groupBy('type')->pluck('total', 'type');
+        $byType = array_map(
+            fn (string $t) => ['label' => $t, 'value' => (int) ($typeRows[$t] ?? 0)],
+            Appointment::TYPES,
+        );
+
+        return [
+            'total' => $total,
+            'volume_trend' => ['bucket' => $bucket, 'series' => $this->fillSeries($keys, $volumeByBucket, 0)],
+            'status_breakdown' => $statusBreakdown,
+            'rates' => [
+                'completion' => $rate((int) ($statusRows['completed'] ?? 0)),
+                'cancellation' => $rate($cancelled),
+                'no_show' => $rate((int) ($statusRows['no_show'] ?? 0)),
+            ],
+            'by_provider' => $byProvider,
+            'by_type' => $byType,
+        ];
     }
 
     private function rangeLabel(string $range, Carbon $start, Carbon $end): string

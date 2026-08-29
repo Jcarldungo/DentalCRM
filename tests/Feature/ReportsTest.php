@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Appointment;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
@@ -191,6 +192,66 @@ class ReportsTest extends TestCase
             ->has('revenue.method_mix', 5)
             ->where('revenue.method_mix', fn ($rows) => collect($rows)->firstWhere('label', 'cash')['value'] === 250
                 && collect($rows)->firstWhere('label', 'card')['value'] === 0)
+        );
+    }
+
+    public function test_appointment_status_breakdown_excludes_requested_and_derives_rates(): void
+    {
+        $this->actingUser();
+        $when = now()->startOfMonth()->addDays(3)->setHour(10);
+
+        foreach (['completed', 'completed', 'cancelled', 'no_show', 'scheduled'] as $status) {
+            Appointment::factory()->create(['status' => $status, 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+        }
+        Appointment::factory()->create(['status' => 'requested', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('appointments.total', 5)
+            ->where('appointments.rates.completion', 0.4)
+            ->where('appointments.rates.cancellation', 0.2)
+            ->where('appointments.rates.no_show', 0.2)
+            ->where('appointments.status_breakdown', fn ($rows) => collect($rows)->firstWhere('label', 'completed')['value'] === 2
+                && collect($rows)->firstWhere('label', 'requested') === null)
+        );
+    }
+
+    public function test_appointments_by_provider_and_type(): void
+    {
+        $this->actingUser();
+        $when = now()->startOfMonth()->addDays(4)->setHour(11);
+        $p = Provider::factory()->create(['name' => 'Dr. Lim']);
+
+        Appointment::factory()->create(['provider_id' => $p->id, 'status' => 'completed', 'type' => 'cleaning', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+        Appointment::factory()->create(['provider_id' => $p->id, 'status' => 'no_show', 'type' => 'checkup', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('appointments.by_provider', fn ($rows) => collect($rows)->firstWhere('label', 'Dr. Lim') === ['label' => 'Dr. Lim', 'total' => 2, 'completed' => 1, 'no_show' => 1])
+            ->has('appointments.by_type', 4)
+            ->where('appointments.by_type', fn ($rows) => collect($rows)->firstWhere('label', 'cleaning')['value'] === 1
+                && collect($rows)->firstWhere('label', 'procedure')['value'] === 0)
+        );
+    }
+
+    public function test_appointment_volume_trend_is_gap_filled(): void
+    {
+        $this->actingUser();
+        $when = now()->startOfMonth()->addDays(2)->setHour(9);
+        Appointment::factory()->create(['status' => 'completed', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+
+        $page = $this->get(route('reports.index'))->viewData('page')['props'];
+        $series = $page['appointments']['volume_trend']['series'];
+
+        $this->assertSame((int) now()->startOfMonth()->diffInDays(now()) + 1, count($series));
+        $this->assertSame(1, array_sum(array_column($series, 'value')));
+    }
+
+    public function test_rates_are_zero_when_there_are_no_appointments(): void
+    {
+        $this->actingUser();
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('appointments.total', 0)
+            ->where('appointments.rates.completion', 0)
         );
     }
 }
