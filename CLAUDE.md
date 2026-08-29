@@ -206,3 +206,8 @@ aspirational, not a contract. Shipped so far:
   is no longer "tomorrow," so it falls out of the query for good. Same
   risk tolerance as the confirm/decline mail-failure handling (logged,
   not retried).
+- The appointment status set and "open treatment" status set are now
+  duplicated in three places (`WorkspaceController`, `QueueController`,
+  `Patients/Show.jsx`) with only a docblock asserting they stay in sync.
+  A shared const on `Appointment`/`TreatmentPlanItem` is the natural home
+  once a fourth consumer appears.

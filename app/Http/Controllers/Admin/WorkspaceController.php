@@ -43,29 +43,33 @@ class WorkspaceController extends Controller
         $providerId = $validated['provider_id'] ?? null;
 
         $appointments = Appointment::query()
-            ->with('patient:id,first_name,last_name,date_of_birth')
+            ->with(['patient:id,first_name,last_name,date_of_birth', 'provider:id,name'])
             ->whereDate('start_time', $date)
             ->whereIn('status', self::SHOWN_STATUSES)
-            ->when($providerId, fn ($query) => $query->where('provider_id', $providerId))
+            ->when($providerId !== null, fn ($query) => $query->where('provider_id', $providerId))
             ->orderBy('start_time')
             ->orderBy('id')
             ->get();
 
         $patientIds = $appointments->pluck('patient_id')->unique()->values();
 
-        $openTreatments = TreatmentPlanItem::query()
-            ->whereIn('patient_id', $patientIds)
-            ->whereIn('status', self::OPEN_TREATMENT_STATUSES)
-            ->selectRaw('patient_id, COUNT(*) as total')
-            ->groupBy('patient_id')
-            ->pluck('total', 'patient_id');
+        $openTreatments = $patientIds->isEmpty()
+            ? collect()
+            : TreatmentPlanItem::query()
+                ->whereIn('patient_id', $patientIds)
+                ->whereIn('status', self::OPEN_TREATMENT_STATUSES)
+                ->selectRaw('patient_id, COUNT(*) as total')
+                ->groupBy('patient_id')
+                ->pluck('total', 'patient_id');
 
-        $activePrescriptions = Prescription::query()
-            ->whereIn('patient_id', $patientIds)
-            ->where('status', 'active')
-            ->selectRaw('patient_id, COUNT(*) as total')
-            ->groupBy('patient_id')
-            ->pluck('total', 'patient_id');
+        $activePrescriptions = $patientIds->isEmpty()
+            ? collect()
+            : Prescription::query()
+                ->whereIn('patient_id', $patientIds)
+                ->where('status', 'active')
+                ->selectRaw('patient_id, COUNT(*) as total')
+                ->groupBy('patient_id')
+                ->pluck('total', 'patient_id');
 
         return Inertia::render('Workspace/Index', [
             'providers' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
@@ -75,6 +79,7 @@ class WorkspaceController extends Controller
                 'id' => $appointment->id,
                 'patient_id' => $appointment->patient_id,
                 'patient_name' => $appointment->patient->full_name,
+                'provider_name' => $appointment->provider?->name,
                 'patient_age' => $appointment->patient->date_of_birth
                     ? (int) $appointment->patient->date_of_birth->diffInYears(now())
                     : null,

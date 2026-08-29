@@ -65,11 +65,16 @@ export default function Index({ providers, selectedProviderId, date, appointment
             <div className="py-8 max-w-4xl mx-auto sm:px-6 lg:px-8">
                 <div className="mb-4 flex flex-wrap items-center gap-3">
                     <select
+                        aria-label="Provider"
                         className="border rounded px-3 py-2 text-sm"
                         value={selectedProviderId ?? ''}
                         onChange={(e) => navigate({ provider_id: e.target.value || undefined })}
                     >
                         <option value="">All providers</option>
+                        {selectedProviderId != null &&
+                            !providers.some((p) => p.id === selectedProviderId) && (
+                            <option value={selectedProviderId}>Inactive provider</option>
+                        )}
                         {providers.map((p) => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
@@ -77,6 +82,7 @@ export default function Index({ providers, selectedProviderId, date, appointment
 
                     <input
                         type="date"
+                        aria-label="Date"
                         className="border rounded px-3 py-2 text-sm"
                         value={date}
                         onChange={(e) => e.target.value && navigate({ date: e.target.value })}
@@ -106,6 +112,7 @@ export default function Index({ providers, selectedProviderId, date, appointment
                                     {appt.status.replace('_', ' ')}
                                 </span>
                                 {appt.type && <span>{appt.type}</span>}
+                                {appt.provider_name && <span>· {appt.provider_name}</span>}
                             </div>
 
                             <div className="mt-1">

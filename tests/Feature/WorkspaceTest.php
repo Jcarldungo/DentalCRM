@@ -185,4 +185,47 @@ class WorkspaceTest extends TestCase
         $this->actingUser();
         $this->get(route('workspace.index', ['date' => 'not-a-date']))->assertSessionHasErrors('date');
     }
+
+    public function test_each_appointment_row_carries_the_full_contract(): void
+    {
+        $this->actingUser();
+        $day = now()->startOfDay()->addHours(9);
+        Appointment::factory()->create([
+            'status' => 'scheduled',
+            'start_time' => $day->clone(),
+            'end_time' => $day->clone()->addMinutes(30),
+        ]);
+
+        $response = $this->get(route('workspace.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('appointments.0', fn ($row) => $row->hasAll([
+                'id', 'patient_id', 'patient_name', 'provider_name', 'patient_age',
+                'type', 'status', 'start_time', 'end_time', 'notes',
+                'open_treatment_count', 'active_prescription_count',
+            ]))
+        );
+    }
+
+    public function test_selected_inactive_provider_is_echoed_and_named_on_rows(): void
+    {
+        $this->actingUser();
+        $day = now()->startOfDay()->addHours(9);
+        $inactive = Provider::factory()->create(['name' => 'Dr. Retired', 'active' => false]);
+        $appt = Appointment::factory()->create([
+            'provider_id' => $inactive->id,
+            'status' => 'scheduled',
+            'start_time' => $day->clone(),
+            'end_time' => $day->clone()->addMinutes(30),
+        ]);
+
+        $response = $this->get(route('workspace.index', ['provider_id' => $inactive->id]));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('selectedProviderId', $inactive->id)
+            ->has('providers', 0)
+            ->where('appointments.0.id', $appt->id)
+            ->where('appointments.0.provider_name', 'Dr. Retired')
+        );
+    }
 }
