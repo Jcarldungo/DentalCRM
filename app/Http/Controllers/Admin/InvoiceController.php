@@ -30,7 +30,70 @@ class InvoiceController extends Controller
 
     public function update(Request $request, Invoice $invoice): RedirectResponse
     {
-        abort(404);
+        if ($request->has('status')) {
+            return $this->transition($request, $invoice);
+        }
+
+        abort_unless($invoice->status === 'draft', 403);
+
+        $validated = $this->validatePayload($request, $invoice->patient_id);
+
+        $invoice->update([
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'notes' => $validated['notes'] ?? null,
+        ]);
+        $this->syncItems($invoice, $validated['items']);
+
+        return back();
+    }
+
+    /**
+     * The draft -> issued -> void state machine. The only legal moves
+     * are draft->issued, draft->void, and issued->void (the last only
+     * while the invoice has no payments). Everything else is a
+     * validation error on 'status'.
+     */
+    protected function transition(Request $request, Invoice $invoice): RedirectResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(Invoice::STATUSES)],
+        ]);
+
+        $from = $invoice->status;
+        $to = $validated['status'];
+
+        $legal = ($from === 'draft' && $to === 'issued')
+            || ($from === 'draft' && $to === 'void')
+            || ($from === 'issued' && $to === 'void');
+
+        if (! $legal) {
+            throw ValidationException::withMessages([
+                'status' => "An invoice cannot move from {$from} to {$to}.",
+            ]);
+        }
+
+        if ($to === 'issued' && $invoice->items()->count() < 1) {
+            throw ValidationException::withMessages([
+                'status' => 'Add at least one line item before issuing this invoice.',
+            ]);
+        }
+
+        if ($from === 'issued' && $to === 'void' && $invoice->payments()->count() > 0) {
+            throw ValidationException::withMessages([
+                'status' => 'An invoice with recorded payments cannot be voided.',
+            ]);
+        }
+
+        $invoice->status = $to;
+        if ($to === 'issued') {
+            $invoice->issued_at = now();
+        }
+        if ($to === 'void') {
+            $invoice->voided_at = now();
+        }
+        $invoice->save();
+
+        return back();
     }
 
     public function show(Invoice $invoice): Response

@@ -255,4 +255,112 @@ class InvoiceTest extends TestCase
             ->where('treatmentPlanItems.0.id', $open->id)
         );
     }
+
+    public function test_guest_cannot_update_an_invoice(): void
+    {
+        $invoice = Invoice::factory()->create();
+
+        $this->patch(route('invoices.update', $invoice), ['status' => 'issued'])
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_editing_a_draft_replaces_items_and_updates_discount_and_notes(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create(['discount_amount' => 0, 'notes' => null]);
+        $stale = InvoiceItem::factory()->create(['invoice_id' => $invoice->id]);
+
+        $this->patch(route('invoices.update', $invoice), [
+            'discount_amount' => 50,
+            'notes' => 'Adjusted.',
+            'items' => [
+                ['description' => 'New line A', 'amount' => 400],
+                ['description' => 'New line B', 'amount' => 600],
+            ],
+        ])->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertSame('50.00', $invoice->discount_amount);
+        $this->assertSame('Adjusted.', $invoice->notes);
+        $this->assertDatabaseMissing('invoice_items', ['id' => $stale->id]);
+        $this->assertSame(2, $invoice->items()->count());
+    }
+
+    public function test_editing_is_rejected_once_issued_or_void(): void
+    {
+        $this->actingUser();
+        $issued = Invoice::factory()->issued()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $issued->id, 'amount' => 100]);
+
+        $this->patch(route('invoices.update', $issued), [
+            'items' => [['description' => 'Sneaky', 'amount' => 999]],
+        ])->assertForbidden();
+
+        $this->assertSame(1, $issued->items()->count());
+        $this->assertSame('100.00', $issued->items()->first()->amount);
+    }
+
+    public function test_issuing_requires_at_least_one_line_item(): void
+    {
+        $this->actingUser();
+        $empty = Invoice::factory()->create();
+
+        $this->patch(route('invoices.update', $empty), ['status' => 'issued'])
+            ->assertSessionHasErrors('status');
+        $this->assertSame('draft', $empty->fresh()->status);
+
+        $ok = Invoice::factory()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $ok->id, 'amount' => 500]);
+        $this->patch(route('invoices.update', $ok), ['status' => 'issued'])->assertRedirect();
+        $ok->refresh();
+        $this->assertSame('issued', $ok->status);
+        $this->assertNotNull($ok->issued_at);
+    }
+
+    public function test_a_draft_voids_freely_and_stamps_voided_at(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create();
+
+        $this->patch(route('invoices.update', $invoice), ['status' => 'void'])->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertSame('void', $invoice->status);
+        $this->assertNotNull($invoice->voided_at);
+    }
+
+    public function test_an_issued_invoice_voids_only_without_payments(): void
+    {
+        $this->actingUser();
+        $withPayment = Invoice::factory()->issued()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $withPayment->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $withPayment->id, 'amount' => 100]);
+
+        $this->patch(route('invoices.update', $withPayment), ['status' => 'void'])
+            ->assertSessionHasErrors('status');
+        $this->assertSame('issued', $withPayment->fresh()->status);
+
+        $clean = Invoice::factory()->issued()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $clean->id, 'amount' => 1000]);
+        $this->patch(route('invoices.update', $clean), ['status' => 'void'])->assertRedirect();
+        $this->assertSame('void', $clean->fresh()->status);
+    }
+
+    public function test_illegal_transitions_are_rejected(): void
+    {
+        $this->actingUser();
+
+        $issued = Invoice::factory()->issued()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $issued->id, 'amount' => 100]);
+        $this->patch(route('invoices.update', $issued), ['status' => 'draft'])
+            ->assertSessionHasErrors('status');
+        $this->assertSame('issued', $issued->fresh()->status);
+
+        $void = Invoice::factory()->void()->create();
+        $this->patch(route('invoices.update', $void), ['status' => 'issued'])
+            ->assertSessionHasErrors('status');
+        $this->patch(route('invoices.update', $void), ['status' => 'draft'])
+            ->assertSessionHasErrors('status');
+        $this->assertSame('void', $void->fresh()->status);
+    }
 }
