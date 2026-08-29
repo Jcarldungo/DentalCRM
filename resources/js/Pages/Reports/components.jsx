@@ -83,8 +83,8 @@ export function ProviderTable({ rows }) {
                 </tr>
             </thead>
             <tbody>
-                {rows.map((r) => (
-                    <tr key={r.label} className="border-b last:border-0">
+                {rows.map((r, i) => (
+                    <tr key={i} className="border-b last:border-0">
                         <td className="py-2">{r.label}</td>
                         <td className="py-2 text-right">{r.total}</td>
                         <td className="py-2 text-right">{r.completed}</td>

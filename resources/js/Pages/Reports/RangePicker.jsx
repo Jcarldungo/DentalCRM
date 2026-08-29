@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 
 const PRESETS = [
     ['this_month', 'This month'],
@@ -11,6 +11,7 @@ const PRESETS = [
 ];
 
 export default function RangePicker({ meta }) {
+    const { errors } = usePage().props;
     const [start, setStart] = useState(meta.start);
     const [end, setEnd] = useState(meta.end);
 
@@ -77,6 +78,11 @@ export default function RangePicker({ meta }) {
                     >
                         Apply
                     </button>
+                    {(errors.start || errors.end || errors.range) && (
+                        <p className="mt-2 w-full text-sm text-red-600">
+                            {errors.start || errors.end || errors.range}
+                        </p>
+                    )}
                 </div>
             )}
         </div>

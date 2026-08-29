@@ -40,7 +40,7 @@ class ReportsController extends Controller
         $range = $validated['range'] ?? 'this_month';
         [$start, $end] = $this->resolveRange($range, $validated['start'] ?? null, $validated['end'] ?? null);
 
-        if ($start->diffInDays($end) > 400) {
+        if ((int) $start->diffInDays($end) > 400) {
             throw ValidationException::withMessages([
                 'end' => 'The date range cannot exceed 400 days.',
             ]);
@@ -82,7 +82,7 @@ class ReportsController extends Controller
 
     private function bucketFor(Carbon $start, Carbon $end): string
     {
-        $days = $start->diffInDays($end);
+        $days = (int) $start->diffInDays($end);
 
         return match (true) {
             $days <= 31 => 'day',
@@ -144,7 +144,7 @@ class ReportsController extends Controller
             ->where('status', '!=', 'void')
             ->whereBetween('issued_at', [$start, $end])
             ->withSum('items as items_total', 'amount')
-            ->get(['id', 'discount_amount'])
+            ->get()
             ->sum(fn (Invoice $i) => (float) $i->items_total - (float) $i->discount_amount), 2);
 
         $outstanding = Invoice::query()
@@ -168,6 +168,7 @@ class ReportsController extends Controller
             'outstanding' => [
                 'total' => round($outstanding->sum(fn (Invoice $i) => $i->balance()), 2),
                 'count' => $outstanding->count(),
+                'as_of' => now()->toDateString(),
             ],
             'collected_trend' => [
                 'bucket' => $bucket,
@@ -194,6 +195,8 @@ class ReportsController extends Controller
 
         return $rows
             ->map(fn ($r) => [
+                // 'Unattributed' here vs. 'Unassigned' in appointments() is deliberate: a line
+                // item genuinely has no provider attribution, whereas an appointment slot is unassigned.
                 'label' => $r->provider_id ? ($names[$r->provider_id] ?? 'Unknown') : 'Unattributed',
                 'value' => round((float) $r->total, 2),
             ])
@@ -357,6 +360,7 @@ class ReportsController extends Controller
             ->selectRaw('patient_id, COUNT(*) as no_show_count')
             ->groupBy('patient_id')
             ->orderByDesc('no_show_count')
+            ->orderBy('patient_id')
             ->get();
         $noShowNames = Patient::whereIn('id', $noShowRows->pluck('patient_id'))
             ->get(['id', 'first_name', 'last_name'])

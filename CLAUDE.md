@@ -270,7 +270,7 @@ aspirational, not a contract. Shipped so far:
   with its items and payments (same accepted O(n) pattern as the
   dashboard tile). Fine at demo scale; a multi-year dataset would want
   summary tables or date-partitioned indexes on `payments.paid_on`,
-  `invoices.issued_at`, `appointments.start_time`.
+  `invoices.issued_at`, `appointments.start_time`, `patients.created_at`.
 - Reports "invoiced revenue by provider" is gross of invoice-level
   discount (a discount is not allocable to one line/provider); the
   invoiced *total* is net. Both are labelled in the UI.

@@ -19,13 +19,13 @@ export default function Index({ meta, revenue, appointments, patients }) {
 
                 <div className="space-y-10">
                     <Section title="Revenue">
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                            <StatTile label="Collected" value={formatPeso(revenue.collected_total)} />
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <StatTile label="Collected" value={formatPeso(revenue.collected_total)} sub="payments received" />
                             <StatTile label="Invoiced" value={formatPeso(revenue.invoiced_total)} sub="net of discount" />
                             <StatTile
                                 label="Outstanding"
                                 value={formatPeso(revenue.outstanding.total)}
-                                sub={`${revenue.outstanding.count} invoice${revenue.outstanding.count === 1 ? '' : 's'}`}
+                                sub={`${revenue.outstanding.count} open invoice${revenue.outstanding.count === 1 ? '' : 's'} · as of ${revenue.outstanding.as_of}`}
                             />
                         </div>
 
@@ -51,6 +51,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                                 rows={revenue.method_mix.map((m) => ({
                                     label: m.label.replace('_', ' '),
                                     value: m.value,
+                                    sub: `${m.count} payment${m.count === 1 ? '' : 's'}`,
                                 }))}
                                 valueFormat="peso"
                             />

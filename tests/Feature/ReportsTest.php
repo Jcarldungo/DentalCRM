@@ -11,11 +11,21 @@ use App\Models\Provider;
 use App\Models\TreatmentPlanItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ReportsTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Pin the clock mid-month / mid-Q3 / mid-year so fixtures placed at
+        // startOfMonth()->addDays(1..5) are never after "today". Laravel's
+        // TestCase resets setTestNow() after each test.
+        Carbon::setTestNow('2026-08-20 12:00:00');
+    }
 
     protected function actingUser(): User
     {
@@ -285,6 +295,88 @@ class ReportsTest extends TestCase
         $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
             ->where('patients.seen.returning', 1)
             ->where('patients.seen.first_visit', 1)
+        );
+    }
+
+    public function test_week_bucket_keys_align_between_sql_and_php(): void
+    {
+        $this->actingUser();
+
+        $inv = Invoice::factory()->issued()->create(['discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $inv->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $inv->id, 'amount' => 500, 'paid_on' => '2026-05-13']);
+
+        $response = $this->get(route('reports.index', ['range' => 'custom', 'start' => '2026-04-01', 'end' => '2026-06-29']));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->where('meta.bucket', 'week'));
+
+        $props = $response->viewData('page')['props'];
+        $series = $props['revenue']['collected_trend']['series'];
+        $nonZero = array_values(array_filter($series, fn ($p) => $p['value'] != 0));
+
+        $this->assertCount(1, $nonZero);
+        $this->assertSame(
+            Carbon::parse('2026-05-13')->startOfWeek(Carbon::MONDAY)->toDateString(),
+            $nonZero[0]['bucket'],
+        );
+        $this->assertSame('2026-05-11', $nonZero[0]['bucket']);
+        $this->assertSame($props['revenue']['collected_total'], array_sum(array_column($series, 'value')));
+    }
+
+    public function test_custom_range_of_exactly_400_days_is_allowed(): void
+    {
+        $this->actingUser();
+
+        // 2025-01-01 + 400 days = 2026-02-05.
+        $this->get(route('reports.index', ['range' => 'custom', 'start' => '2025-01-01', 'end' => '2026-02-05']))
+            ->assertOk()
+            ->assertSessionHasNoErrors();
+
+        // + 401 days = 2026-02-06.
+        $this->get(route('reports.index', ['range' => 'custom', 'start' => '2025-01-01', 'end' => '2026-02-06']))
+            ->assertSessionHasErrors('end');
+    }
+
+    public function test_revenue_by_provider_is_not_inflated_by_line_count(): void
+    {
+        $this->actingUser();
+        $provider = Provider::factory()->create(['name' => 'Dr. Uy']);
+
+        $inv = Invoice::factory()->issued()->create(['discount_amount' => 0, 'issued_at' => now()]);
+        foreach ([100, 200, 300] as $amount) {
+            InvoiceItem::factory()->create(['invoice_id' => $inv->id, 'amount' => $amount, 'provider_id' => $provider->id]);
+        }
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('revenue.by_provider', fn ($rows) => collect($rows)->where('label', 'Dr. Uy')->count() === 1
+                && collect($rows)->firstWhere('label', 'Dr. Uy')['value'] === 600)
+        );
+    }
+
+    public function test_outstanding_ar_ignores_the_selected_range(): void
+    {
+        $this->actingUser();
+
+        $inv = Invoice::factory()->issued()->create([
+            'discount_amount' => 0,
+            'issued_at' => Carbon::now()->subDays(300),
+        ]);
+        InvoiceItem::factory()->create(['invoice_id' => $inv->id, 'amount' => 1000]);
+        Payment::factory()->create([
+            'invoice_id' => $inv->id,
+            'amount' => 400,
+            'paid_on' => Carbon::now()->subDays(300)->toDateString(),
+        ]);
+
+        $this->get(route('reports.index', [
+            'range' => 'custom',
+            'start' => Carbon::now()->subDays(10)->toDateString(),
+            'end' => Carbon::now()->toDateString(),
+        ]))->assertInertia(fn ($page) => $page
+            ->where('revenue.outstanding.total', 600)
+            ->where('revenue.outstanding.count', 1)
+            ->where('revenue.collected_total', 0)
         );
     }
 

@@ -122,7 +122,7 @@ class DemoSeeder extends Seeder
                     'invoice_id' => $invoice->id,
                     'amount' => $pay,
                     'method' => $methods[array_rand($methods)],
-                    'paid_on' => $issuedAt->clone()->addDays(rand(0, 20))->toDateString(),
+                    'paid_on' => min($issuedAt->clone()->addDays(rand(0, 20)), Carbon::now())->toDateString(),
                     'created_by' => $staff->id,
                 ]);
             }
