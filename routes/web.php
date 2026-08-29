@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PrescriptionController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
+use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\ToothConditionController;
 use App\Http\Controllers\Admin\TreatmentPlanItemController;
 use App\Http\Controllers\Admin\WorkspaceController;
@@ -89,6 +90,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/queue/walk-ins', [QueueController::class, 'storeWalkIn'])->name('queue.walkins.store');
 
     Route::get('/workspace', [WorkspaceController::class, 'index'])->name('workspace.index');
+
+    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
 
     Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::post('/invoices', [InvoiceController::class, 'store'])->name('invoices.store');
