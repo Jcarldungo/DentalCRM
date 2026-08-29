@@ -10,6 +10,7 @@ use App\Models\TreatmentPlanItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -64,6 +65,8 @@ class InvoiceController extends Controller
 
     public function update(Request $request, Invoice $invoice): RedirectResponse
     {
+        // Dual-mode PATCH: when both `status` and edit fields are present,
+        // `status` wins (transition mode) and the edit fields are ignored.
         if ($request->has('status')) {
             return $this->transition($request, $invoice);
         }
@@ -72,11 +75,13 @@ class InvoiceController extends Controller
 
         $validated = $this->validatePayload($request, $invoice->patient_id);
 
-        $invoice->update([
-            'discount_amount' => $validated['discount_amount'] ?? 0,
-            'notes' => $validated['notes'] ?? null,
-        ]);
-        $this->syncItems($invoice, $validated['items']);
+        DB::transaction(function () use ($invoice, $validated) {
+            $invoice->update([
+                'discount_amount' => $validated['discount_amount'] ?? 0,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            $this->syncItems($invoice, $validated['items']);
+        });
 
         return back();
     }
@@ -112,20 +117,24 @@ class InvoiceController extends Controller
             ]);
         }
 
-        if ($from === 'issued' && $to === 'void' && $invoice->payments()->count() > 0) {
-            throw ValidationException::withMessages([
-                'status' => 'An invoice with recorded payments cannot be voided.',
-            ]);
-        }
+        DB::transaction(function () use ($invoice, $from, $to) {
+            $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
 
-        $invoice->status = $to;
-        if ($to === 'issued') {
-            $invoice->issued_at = now();
-        }
-        if ($to === 'void') {
-            $invoice->voided_at = now();
-        }
-        $invoice->save();
+            if ($from === 'issued' && $to === 'void' && $locked->payments()->count() > 0) {
+                throw ValidationException::withMessages([
+                    'status' => 'An invoice with recorded payments cannot be voided.',
+                ]);
+            }
+
+            $locked->status = $to;
+            if ($to === 'issued') {
+                $locked->issued_at = now();
+            }
+            if ($to === 'void') {
+                $locked->voided_at = now();
+            }
+            $locked->save();
+        });
 
         return back();
     }
@@ -147,16 +156,22 @@ class InvoiceController extends Controller
 
         $validated = $this->validatePayload($request, $patientId);
 
-        $invoice = new Invoice([
-            'patient_id' => $patientId,
-            'discount_amount' => $validated['discount_amount'] ?? 0,
-            'notes' => $validated['notes'] ?? null,
-        ]);
-        $invoice->status = 'draft';
-        $invoice->created_by = $request->user()->id;
-        $invoice->save();
+        $userId = $request->user()->id;
 
-        $this->syncItems($invoice, $validated['items']);
+        $invoice = DB::transaction(function () use ($patientId, $validated, $userId) {
+            $invoice = new Invoice([
+                'patient_id' => $patientId,
+                'discount_amount' => $validated['discount_amount'] ?? 0,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            $invoice->status = 'draft';
+            $invoice->created_by = $userId;
+            $invoice->save();
+
+            $this->syncItems($invoice, $validated['items']);
+
+            return $invoice;
+        });
 
         return redirect()->route('invoices.show', $invoice);
     }
@@ -170,11 +185,11 @@ class InvoiceController extends Controller
     protected function validatePayload(Request $request, int $patientId): array
     {
         $validated = $request->validate([
-            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'notes' => ['nullable', 'string'],
-            'items' => ['required', 'array', 'min:1'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.description' => ['required', 'string', 'max:255'],
-            'items.*.amount' => ['required', 'numeric', 'min:0'],
+            'items.*.amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'items.*.treatment_plan_item_id' => [
                 'nullable',
                 Rule::exists('treatment_plan_items', 'id')->where('patient_id', $patientId),
@@ -196,14 +211,17 @@ class InvoiceController extends Controller
     {
         $invoice->items()->delete();
 
+        $providerByTpi = TreatmentPlanItem::whereIn(
+            'id',
+            collect($items)->pluck('treatment_plan_item_id')->filter()->unique()->all(),
+        )->pluck('provider_id', 'id');
+
         foreach ($items as $item) {
             $tpiId = $item['treatment_plan_item_id'] ?? null;
 
             $invoice->items()->create([
                 'treatment_plan_item_id' => $tpiId,
-                'provider_id' => $tpiId
-                    ? TreatmentPlanItem::whereKey($tpiId)->value('provider_id')
-                    : null,
+                'provider_id' => $tpiId ? ($providerByTpi[$tpiId] ?? null) : null,
                 'description' => $item['description'],
                 'amount' => $item['amount'],
             ]);
@@ -272,6 +290,7 @@ class InvoiceController extends Controller
             ->map(fn (TreatmentPlanItem $item) => [
                 'id' => $item->id,
                 'label' => $this->treatmentLabel($item),
+                'treatment' => $item->treatment,
                 'estimated_cost' => (float) $item->estimated_cost,
             ]);
     }

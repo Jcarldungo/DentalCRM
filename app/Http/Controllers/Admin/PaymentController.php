@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -30,25 +31,30 @@ class PaymentController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $invoice->load(['items', 'payments']);
-        $balance = $invoice->balance();
+        $userId = $request->user()->id;
 
-        if ((float) $validated['amount'] > $balance) {
-            throw ValidationException::withMessages([
-                'amount' => 'Payment of '.number_format((float) $validated['amount'], 2)
-                    .' exceeds the outstanding balance of '.number_format($balance, 2).'.',
+        DB::transaction(function () use ($invoice, $validated, $userId) {
+            $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+            $locked->load(['items', 'payments']);
+            $balance = $locked->balance();
+
+            if ((float) $validated['amount'] > $balance) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Payment of '.number_format((float) $validated['amount'], 2)
+                        .' exceeds the outstanding balance of '.number_format($balance, 2).'.',
+                ]);
+            }
+
+            $payment = $locked->payments()->make([
+                'amount' => $validated['amount'],
+                'method' => $validated['method'],
+                'paid_on' => $validated['paid_on'] ?? now()->toDateString(),
+                'reference' => $validated['reference'] ?? null,
+                'note' => $validated['note'] ?? null,
             ]);
-        }
-
-        $payment = $invoice->payments()->make([
-            'amount' => $validated['amount'],
-            'method' => $validated['method'],
-            'paid_on' => $validated['paid_on'] ?? now()->toDateString(),
-            'reference' => $validated['reference'] ?? null,
-            'note' => $validated['note'] ?? null,
-        ]);
-        $payment->created_by = $request->user()->id;
-        $payment->save();
+            $payment->created_by = $userId;
+            $payment->save();
+        });
 
         return back();
     }

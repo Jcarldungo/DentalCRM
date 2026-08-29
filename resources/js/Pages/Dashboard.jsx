@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { formatPeso } from '@/Pages/Patients/format';
 
 export default function Dashboard({ dueForRecall, outstanding }) {
     return (
@@ -16,7 +17,7 @@ export default function Dashboard({ dueForRecall, outstanding }) {
                         <p className="text-sm text-gray-500">No outstanding balances.</p>
                     ) : (
                         <p className="text-sm text-gray-600">
-                            ₱{outstanding.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatPeso(outstanding.total)}
                             {' '}across {outstanding.count} invoice{outstanding.count === 1 ? '' : 's'}
                         </p>
                     )}

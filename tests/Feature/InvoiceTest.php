@@ -298,6 +298,65 @@ class InvoiceTest extends TestCase
 
         $this->assertSame(1, $issued->items()->count());
         $this->assertSame('100.00', $issued->items()->first()->amount);
+
+        $void = Invoice::factory()->void()->create();
+        $stale = InvoiceItem::factory()->create(['invoice_id' => $void->id, 'amount' => 200]);
+
+        $this->patch(route('invoices.update', $void), [
+            'items' => [['description' => 'Sneaky', 'amount' => 999]],
+        ])->assertForbidden();
+
+        $this->assertSame(1, $void->items()->count());
+        $this->assertSame($stale->id, $void->items()->first()->id);
+    }
+
+    public function test_patch_with_status_and_edit_fields_runs_the_transition_and_ignores_edits(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create(['discount_amount' => 0]);
+        $original = InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 500]);
+
+        $this->patch(route('invoices.update', $invoice), [
+            'status' => 'issued',
+            'items' => [['description' => 'Different line', 'amount' => 4200]],
+            'discount_amount' => 999,
+        ])->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertSame('issued', $invoice->status);
+        $this->assertSame(1, $invoice->items()->count());
+        $this->assertSame($original->id, $invoice->items()->first()->id);
+        $this->assertSame('0.00', $invoice->discount_amount);
+    }
+
+    public function test_edit_mode_rejects_a_discount_over_the_new_subtotal(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create(['discount_amount' => 0]);
+        $original = InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 300]);
+
+        $this->patch(route('invoices.update', $invoice), [
+            'items' => [['description' => 'New line', 'amount' => 100]],
+            'discount_amount' => 200,
+        ])->assertSessionHasErrors('discount_amount');
+
+        $this->assertSame(1, $invoice->items()->count());
+        $this->assertSame($original->id, $invoice->items()->first()->id);
+    }
+
+    public function test_edit_mode_rejects_a_cross_patient_treatment_plan_item(): void
+    {
+        $this->actingUser();
+        $patientA = Patient::factory()->create();
+        $patientB = Patient::factory()->create();
+        $invoice = Invoice::factory()->create(['patient_id' => $patientA->id]);
+        $foreignTpi = TreatmentPlanItem::factory()->create(['patient_id' => $patientB->id]);
+
+        $this->patch(route('invoices.update', $invoice), [
+            'items' => [
+                ['description' => 'New line', 'amount' => 100, 'treatment_plan_item_id' => $foreignTpi->id],
+            ],
+        ])->assertSessionHasErrors('items.0.treatment_plan_item_id');
     }
 
     public function test_issuing_requires_at_least_one_line_item(): void

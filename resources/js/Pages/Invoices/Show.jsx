@@ -53,7 +53,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
         const tpi = treatmentPlanItems.find((t) => String(t.id) === String(tpiId));
         setLine(index, {
             treatment_plan_item_id: tpiId,
-            description: tpi ? tpi.label : editForm.data.items[index].description,
+            description: tpi ? tpi.treatment : editForm.data.items[index].description,
             amount: tpi ? tpi.estimated_cost : editForm.data.items[index].amount,
         });
     }
@@ -251,6 +251,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                                             <input
                                                 type="number"
                                                 min="0"
+                                                max="99999999.99"
                                                 step="0.01"
                                                 className="w-full rounded border px-3 py-2"
                                                 value={line.amount}
@@ -294,6 +295,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                             <input
                                 type="number"
                                 min="0"
+                                max="99999999.99"
                                 step="0.01"
                                 className="w-full rounded border px-3 py-2"
                                 value={editForm.data.discount_amount}

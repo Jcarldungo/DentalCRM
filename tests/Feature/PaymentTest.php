@@ -142,4 +142,10 @@ class PaymentTest extends TestCase
             ->assertSessionHasErrors('method');
         $this->assertSame(0, Payment::count());
     }
+
+    public function test_payment_controller_has_no_write_methods_beyond_store(): void
+    {
+        $this->assertFalse(method_exists(\App\Http\Controllers\Admin\PaymentController::class, 'update'));
+        $this->assertFalse(method_exists(\App\Http\Controllers\Admin\PaymentController::class, 'destroy'));
+    }
 }

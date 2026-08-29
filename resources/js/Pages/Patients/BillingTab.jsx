@@ -191,6 +191,7 @@ export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
                                             <input
                                                 type="number"
                                                 min="0"
+                                                max="99999999.99"
                                                 step="0.01"
                                                 className="w-full rounded border px-3 py-2"
                                                 value={line.amount}
@@ -226,6 +227,7 @@ export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
                                 <input
                                     type="number"
                                     min="0"
+                                    max="99999999.99"
                                     step="0.01"
                                     className="w-full rounded border px-3 py-2"
                                     value={form.data.discount_amount}
