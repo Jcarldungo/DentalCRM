@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Appointment;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Provider;
 use App\Models\TreatmentPlanItem;
@@ -252,6 +253,56 @@ class ReportsTest extends TestCase
         $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
             ->where('appointments.total', 0)
             ->where('appointments.rates.completion', 0)
+        );
+    }
+
+    public function test_new_patients_trend_and_total(): void
+    {
+        $this->actingUser();
+        Patient::factory()->create(['created_at' => now()->startOfMonth()->addDay()]);
+        Patient::factory()->create(['created_at' => now()->startOfMonth()->addDays(2)]);
+        Patient::factory()->create(['created_at' => now()->startOfMonth()->subMonth()]);
+
+        $response = $this->get(route('reports.index'));
+        $response->assertInertia(fn ($page) => $page->where('patients.new_total', 2));
+
+        $series = $response->viewData('page')['props']['patients']['new_trend']['series'];
+        $this->assertSame(2, array_sum(array_column($series, 'value')));
+    }
+
+    public function test_returning_versus_first_visit(): void
+    {
+        $this->actingUser();
+        $inRange = now()->startOfMonth()->addDays(3)->setHour(10);
+
+        $returning = Patient::factory()->create();
+        Appointment::factory()->create(['patient_id' => $returning->id, 'status' => 'completed', 'start_time' => now()->subMonths(3), 'end_time' => now()->subMonths(3)->addMinutes(30)]);
+        Appointment::factory()->create(['patient_id' => $returning->id, 'status' => 'completed', 'start_time' => $inRange, 'end_time' => $inRange->clone()->addMinutes(30)]);
+
+        $firstTimer = Patient::factory()->create();
+        Appointment::factory()->create(['patient_id' => $firstTimer->id, 'status' => 'completed', 'start_time' => $inRange, 'end_time' => $inRange->clone()->addMinutes(30)]);
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('patients.seen.returning', 1)
+            ->where('patients.seen.first_visit', 1)
+        );
+    }
+
+    public function test_no_show_patients_list_is_capped_and_ordered(): void
+    {
+        $this->actingUser();
+        $when = now()->startOfMonth()->addDays(5)->setHour(9);
+
+        $twice = Patient::factory()->create(['first_name' => 'Nora', 'last_name' => 'Kaye']);
+        Appointment::factory()->count(2)->create(['patient_id' => $twice->id, 'status' => 'no_show', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+
+        $once = Patient::factory()->create();
+        Appointment::factory()->create(['patient_id' => $once->id, 'status' => 'no_show', 'start_time' => $when, 'end_time' => $when->clone()->addMinutes(30)]);
+
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page
+            ->where('patients.no_show_patients.count', 2)
+            ->where('patients.no_show_patients.list.0.name', 'Nora Kaye')
+            ->where('patients.no_show_patients.list.0.no_show_count', 2)
         );
     }
 }

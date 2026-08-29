@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Invoice;
+use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Provider;
 use Carbon\CarbonPeriod;
@@ -57,7 +58,7 @@ class ReportsController extends Controller
             ],
             'revenue' => $this->revenue($start, $end, $bucket),
             'appointments' => $this->appointments($start, $end, $bucket),
-            'patients' => [],
+            'patients' => $this->patients($start, $end, $bucket),
         ]);
     }
 
@@ -322,6 +323,60 @@ class ReportsController extends Controller
             ],
             'by_provider' => $byProvider,
             'by_type' => $byType,
+        ];
+    }
+
+    private function patients(Carbon $start, Carbon $end, string $bucket): array
+    {
+        $keys = $this->bucketKeys($start, $end, $bucket);
+        $newByBucket = Patient::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->selectRaw($this->bucketExpr('created_at', $bucket).' as bucket, COUNT(*) as total')
+            ->groupBy('bucket')
+            ->pluck('total', 'bucket')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $inRangePatientIds = Appointment::query()
+            ->where('status', 'completed')
+            ->whereBetween('start_time', [$start, $end])
+            ->distinct()
+            ->pluck('patient_id');
+
+        $returning = Appointment::query()
+            ->where('status', 'completed')
+            ->where('start_time', '<', $start)
+            ->whereIn('patient_id', $inRangePatientIds)
+            ->distinct()
+            ->pluck('patient_id')
+            ->count();
+
+        $noShowRows = Appointment::query()
+            ->where('status', 'no_show')
+            ->whereBetween('start_time', [$start, $end])
+            ->selectRaw('patient_id, COUNT(*) as no_show_count')
+            ->groupBy('patient_id')
+            ->orderByDesc('no_show_count')
+            ->get();
+        $noShowNames = Patient::whereIn('id', $noShowRows->pluck('patient_id'))
+            ->get(['id', 'first_name', 'last_name'])
+            ->keyBy('id');
+
+        return [
+            'new_total' => array_sum($newByBucket),
+            'new_trend' => ['bucket' => $bucket, 'series' => $this->fillSeries($keys, $newByBucket, 0)],
+            'seen' => [
+                'returning' => $returning,
+                'first_visit' => $inRangePatientIds->count() - $returning,
+            ],
+            'no_show_patients' => [
+                'count' => $noShowRows->count(),
+                'list' => $noShowRows->take(20)->map(fn ($r) => [
+                    'id' => $r->patient_id,
+                    'name' => ($noShowNames[$r->patient_id] ?? null)?->full_name ?? 'Unknown',
+                    'no_show_count' => (int) $r->no_show_count,
+                ])->values()->all(),
+            ],
         ];
     }
 
