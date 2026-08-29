@@ -455,8 +455,8 @@ class StockMovementFactory extends Factory
 
 - [ ] **Step 9: Run migrations and the test**
 
-Run: `"$HOME/.config/herd/bin/php.bat" artisan migrate --database=mysql` then `"$HOME/.config/herd/bin/php.bat" artisan test --filter=InventoryItemTest`
-Expected: PASS (3 tests). (`RefreshDatabase` migrates the test DB automatically; the explicit `migrate` keeps the dev DB current.)
+Run: `"$HOME/.config/herd/bin/php.bat" artisan migrate` then `"$HOME/.config/herd/bin/php.bat" artisan test --filter=InventoryItemTest`
+Expected: PASS (3 tests). (`RefreshDatabase` re-migrates the `dentalcrm_testing` DB automatically; the explicit `migrate` keeps the dev DB current — accept its default connection, do not pass `--database`.)
 
 - [ ] **Step 10: Commit**
 
