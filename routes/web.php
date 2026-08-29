@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
 use App\Http\Controllers\Admin\ToothConditionController;
 use App\Http\Controllers\Admin\TreatmentPlanItemController;
+use App\Http\Controllers\Admin\WorkspaceController;
 use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
 use App\Http\Controllers\AppointmentLookupController;
 use App\Http\Controllers\BookingController;
@@ -84,6 +85,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/queue', [QueueController::class, 'index'])->name('queue.index');
     Route::post('/queue/walk-ins', [QueueController::class, 'storeWalkIn'])->name('queue.walkins.store');
+
+    Route::get('/workspace', [WorkspaceController::class, 'index'])->name('workspace.index');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');
