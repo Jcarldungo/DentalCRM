@@ -25,7 +25,41 @@ class InvoiceController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort(404);
+        $validated = $request->validate([
+            'status' => ['nullable', Rule::in(['all', 'draft', 'outstanding', 'paid', 'void'])],
+        ]);
+        $filter = $validated['status'] ?? 'all';
+
+        $invoices = Invoice::query()
+            ->latest('created_at')
+            ->latest('id')
+            ->with(['items', 'payments', 'patient:id,first_name,last_name'])
+            ->get()
+            ->filter(fn (Invoice $invoice) => match ($filter) {
+                'draft' => $invoice->status === 'draft',
+                'outstanding' => $invoice->status === 'issued' && $invoice->balance() > 0,
+                'paid' => $invoice->status === 'issued' && $invoice->balance() <= 0,
+                'void' => $invoice->status === 'void',
+                default => true,
+            })
+            ->values()
+            ->map(fn (Invoice $invoice) => [
+                'id' => $invoice->id,
+                'number' => $invoice->number(),
+                'patient_id' => $invoice->patient_id,
+                'patient_name' => $invoice->patient->full_name,
+                'status' => $invoice->status,
+                'total' => $invoice->total(),
+                'amount_paid' => $invoice->amountPaid(),
+                'balance' => $invoice->balance(),
+                'is_paid' => $invoice->isPaid(),
+                'created_at' => $invoice->created_at->toIso8601String(),
+            ]);
+
+        return Inertia::render('Invoices/Index', [
+            'invoices' => $invoices,
+            'filters' => ['status' => $filter],
+        ]);
     }
 
     public function update(Request $request, Invoice $invoice): RedirectResponse

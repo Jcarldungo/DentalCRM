@@ -363,4 +363,62 @@ class InvoiceTest extends TestCase
             ->assertSessionHasErrors('status');
         $this->assertSame('void', $void->fresh()->status);
     }
+
+    public function test_guest_cannot_view_the_invoices_index(): void
+    {
+        $this->get(route('invoices.index'))->assertRedirect(route('login'));
+    }
+
+    public function test_index_lists_all_invoices_newest_first_by_default(): void
+    {
+        $this->actingUser();
+        $older = Invoice::factory()->create(['created_at' => now()->subDay()]);
+        $newer = Invoice::factory()->create(['created_at' => now()]);
+
+        $response = $this->get(route('invoices.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Invoices/Index')
+            ->where('filters.status', 'all')
+            ->has('invoices', 2)
+            ->where('invoices.0.id', $newer->id)
+            ->where('invoices.1.id', $older->id)
+        );
+    }
+
+    public function test_index_status_filters_bucket_correctly(): void
+    {
+        $this->actingUser();
+
+        $draft = Invoice::factory()->create();
+
+        $outstanding = Invoice::factory()->issued()->create(['discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $outstanding->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $outstanding->id, 'amount' => 400]);
+
+        $paid = Invoice::factory()->issued()->create(['discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $paid->id, 'amount' => 500]);
+        Payment::factory()->create(['invoice_id' => $paid->id, 'amount' => 500]);
+
+        $void = Invoice::factory()->void()->create();
+
+        $this->get(route('invoices.index', ['status' => 'draft']))
+            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $draft->id));
+        $this->get(route('invoices.index', ['status' => 'outstanding']))
+            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $outstanding->id));
+        $this->get(route('invoices.index', ['status' => 'paid']))
+            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $paid->id));
+        $this->get(route('invoices.index', ['status' => 'void']))
+            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $void->id));
+        $this->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->has('invoices', 4));
+    }
+
+    public function test_index_rejects_an_unknown_status_filter(): void
+    {
+        $this->actingUser();
+
+        $this->get(route('invoices.index', ['status' => 'nonsense']))
+            ->assertSessionHasErrors('status');
+    }
 }
