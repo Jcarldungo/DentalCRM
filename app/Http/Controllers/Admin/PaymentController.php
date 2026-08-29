@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use App\Models\Payment;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Recording a payment against an issued invoice, and nothing else.
+ * Payments are append-only — there is deliberately no update() or
+ * destroy() here, and no matching route. Overpayment is rejected: the
+ * amount is capped at the invoice's current balance.
+ */
+class PaymentController extends Controller
+{
+    public function store(Request $request, Invoice $invoice): RedirectResponse
+    {
+        abort_unless($invoice->status === 'issued', 403);
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'method' => ['required', Rule::in(Payment::METHODS)],
+            'paid_on' => ['nullable', 'date'],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $invoice->load(['items', 'payments']);
+        $balance = $invoice->balance();
+
+        if ((float) $validated['amount'] > $balance) {
+            throw ValidationException::withMessages([
+                'amount' => 'Payment of '.number_format((float) $validated['amount'], 2)
+                    .' exceeds the outstanding balance of '.number_format($balance, 2).'.',
+            ]);
+        }
+
+        $payment = $invoice->payments()->make([
+            'amount' => $validated['amount'],
+            'method' => $validated['method'],
+            'paid_on' => $validated['paid_on'] ?? now()->toDateString(),
+            'reference' => $validated['reference'] ?? null,
+            'note' => $validated['note'] ?? null,
+        ]);
+        $payment->created_by = $request->user()->id;
+        $payment->save();
+
+        return back();
+    }
+}
