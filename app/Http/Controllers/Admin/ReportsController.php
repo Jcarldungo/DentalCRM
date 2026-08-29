@@ -3,9 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use App\Models\Payment;
+use App\Models\Provider;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\CarbonPeriod;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -49,7 +54,7 @@ class ReportsController extends Controller
                 'label' => $this->rangeLabel($range, $start, $end),
                 'bucket' => $bucket,
             ],
-            'revenue' => [],
+            'revenue' => $this->revenue($start, $end, $bucket),
             'appointments' => [],
             'patients' => [],
         ]);
@@ -123,6 +128,129 @@ class ReportsController extends Controller
             fn (string $key) => ['bucket' => $key, 'value' => $valuesByKey[$key] ?? $zero],
             $keys,
         );
+    }
+
+    private function revenue(Carbon $start, Carbon $end, string $bucket): array
+    {
+        $paidOnRange = [$start->toDateString(), $end->toDateString()];
+
+        $collectedTotal = round((float) Payment::query()
+            ->whereBetween('paid_on', $paidOnRange)
+            ->sum('amount'), 2);
+
+        $invoicedTotal = round((float) Invoice::query()
+            ->where('status', '!=', 'void')
+            ->whereBetween('issued_at', [$start, $end])
+            ->withSum('items as items_total', 'amount')
+            ->get(['id', 'discount_amount'])
+            ->sum(fn (Invoice $i) => (float) $i->items_total - (float) $i->discount_amount), 2);
+
+        $outstanding = Invoice::query()
+            ->where('status', 'issued')
+            ->with(['items', 'payments'])
+            ->get()
+            ->filter(fn (Invoice $i) => $i->balance() > 0);
+
+        $keys = $this->bucketKeys($start, $end, $bucket);
+        $collectedByBucket = Payment::query()
+            ->whereBetween('paid_on', $paidOnRange)
+            ->selectRaw($this->bucketExpr('paid_on', $bucket).' as bucket, SUM(amount) as total')
+            ->groupBy('bucket')
+            ->pluck('total', 'bucket')
+            ->map(fn ($v) => round((float) $v, 2))
+            ->all();
+
+        return [
+            'collected_total' => $collectedTotal,
+            'invoiced_total' => $invoicedTotal,
+            'outstanding' => [
+                'total' => round($outstanding->sum(fn (Invoice $i) => $i->balance()), 2),
+                'count' => $outstanding->count(),
+            ],
+            'collected_trend' => [
+                'bucket' => $bucket,
+                'series' => $this->fillSeries($keys, $collectedByBucket, 0),
+            ],
+            'by_provider' => $this->revenueByProvider($start, $end),
+            'by_treatment' => $this->revenueByTreatment($start, $end),
+            'method_mix' => $this->methodMix($paidOnRange),
+        ];
+    }
+
+    /** @return list<array{label: string, value: float}> */
+    private function revenueByProvider(Carbon $start, Carbon $end): array
+    {
+        $rows = DB::table('invoice_items')
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->where('invoices.status', '!=', 'void')
+            ->whereBetween('invoices.issued_at', [$start, $end])
+            ->selectRaw('invoice_items.provider_id, SUM(invoice_items.amount) as total')
+            ->groupBy('invoice_items.provider_id')
+            ->get();
+
+        $names = Provider::whereIn('id', $rows->pluck('provider_id')->filter())->pluck('name', 'id');
+
+        return $rows
+            ->map(fn ($r) => [
+                'label' => $r->provider_id ? ($names[$r->provider_id] ?? 'Unknown') : 'Unattributed',
+                'value' => round((float) $r->total, 2),
+            ])
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array{label: string, value: float}> */
+    private function revenueByTreatment(Carbon $start, Carbon $end): array
+    {
+        $rows = DB::table('invoice_items')
+            ->join('invoices', 'invoices.id', '=', 'invoice_items.invoice_id')
+            ->leftJoin('treatment_plan_items', 'treatment_plan_items.id', '=', 'invoice_items.treatment_plan_item_id')
+            ->where('invoices.status', '!=', 'void')
+            ->whereBetween('invoices.issued_at', [$start, $end])
+            ->selectRaw("COALESCE(treatment_plan_items.treatment, 'Ad-hoc / unlinked') as label, SUM(invoice_items.amount) as total")
+            ->groupBy('label')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($r) => ['label' => $r->label, 'value' => round((float) $r->total, 2)]);
+
+        return $this->topNWithOther($rows, 8);
+    }
+
+    /**
+     * @param  Collection<int, array{label: string, value: float}>  $rows  sorted desc by value
+     * @return list<array{label: string, value: float}>
+     */
+    private function topNWithOther(Collection $rows, int $n): array
+    {
+        if ($rows->count() <= $n) {
+            return $rows->values()->all();
+        }
+
+        return $rows->take($n)
+            ->push(['label' => 'Other', 'value' => round((float) $rows->slice($n)->sum('value'), 2)])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array{0: string, 1: string}  $paidOnRange
+     * @return list<array{label: string, value: float, count: int}>
+     */
+    private function methodMix(array $paidOnRange): array
+    {
+        $rows = Payment::query()
+            ->whereBetween('paid_on', $paidOnRange)
+            ->selectRaw('method, SUM(amount) as total, COUNT(*) as count')
+            ->groupBy('method')
+            ->get()
+            ->keyBy('method');
+
+        return collect(Payment::METHODS)->map(fn (string $m) => [
+            'label' => $m,
+            'value' => round((float) ($rows[$m]->total ?? 0), 2),
+            'count' => (int) ($rows[$m]->count ?? 0),
+        ])->all();
     }
 
     private function rangeLabel(string $range, Carbon $start, Carbon $end): string
