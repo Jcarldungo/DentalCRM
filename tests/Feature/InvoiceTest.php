@@ -112,4 +112,147 @@ class InvoiceTest extends TestCase
         $this->assertFalse(Route::has('invoice-payments.update'));
         $this->assertFalse(Route::has('invoice-payments.destroy'));
     }
+
+    public function test_guest_cannot_create_or_view_invoices(): void
+    {
+        $invoice = Invoice::factory()->create();
+
+        $this->post(route('invoices.store'), [])->assertRedirect(route('login'));
+        $this->get(route('invoices.show', $invoice))->assertRedirect(route('login'));
+    }
+
+    public function test_it_creates_a_draft_invoice_with_line_items(): void
+    {
+        $user = $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        $response = $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'discount_amount' => 100,
+            'notes' => 'First visit.',
+            'items' => [
+                ['description' => 'Consultation fee', 'amount' => 800],
+                ['description' => 'X-ray', 'amount' => 1200],
+            ],
+        ]);
+
+        $invoice = Invoice::first();
+        $response->assertRedirect(route('invoices.show', $invoice));
+        $this->assertSame('draft', $invoice->status);
+        $this->assertSame($patient->id, $invoice->patient_id);
+        $this->assertSame('100.00', $invoice->discount_amount);
+        $this->assertSame($user->id, $invoice->created_by);
+        $this->assertSame(2, $invoice->items()->count());
+        $this->assertNull($invoice->issued_at);
+    }
+
+    public function test_created_by_ignores_a_request_supplied_value(): void
+    {
+        $user = $this->actingUser();
+        $other = User::factory()->create();
+        $patient = Patient::factory()->create();
+
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'created_by' => $other->id,
+            'status' => 'issued',
+            'items' => [['description' => 'Cleaning', 'amount' => 1500]],
+        ]);
+
+        $invoice = Invoice::first();
+        $this->assertSame($user->id, $invoice->created_by);
+        $this->assertSame('draft', $invoice->status);
+    }
+
+    public function test_a_line_can_link_to_a_treatment_plan_item_and_copies_its_provider(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $provider = Provider::factory()->create();
+        $tpi = TreatmentPlanItem::factory()->create([
+            'patient_id' => $patient->id,
+            'provider_id' => $provider->id,
+        ]);
+
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'items' => [
+                ['description' => 'Root canal', 'amount' => 8000, 'treatment_plan_item_id' => $tpi->id],
+            ],
+        ]);
+
+        $item = InvoiceItem::first();
+        $this->assertSame($tpi->id, $item->treatment_plan_item_id);
+        $this->assertSame($provider->id, $item->provider_id);
+    }
+
+    public function test_store_validation_rejects_bad_payloads(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $otherPatientsTpi = TreatmentPlanItem::factory()->create();
+
+        $this->post(route('invoices.store'), ['patient_id' => $patient->id, 'items' => []])
+            ->assertSessionHasErrors('items');
+        $this->post(route('invoices.store'), ['patient_id' => $patient->id])
+            ->assertSessionHasErrors('items');
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'items' => [['amount' => 100]],
+        ])->assertSessionHasErrors('items.0.description');
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'items' => [['description' => 'x', 'amount' => -5]],
+        ])->assertSessionHasErrors('items.0.amount');
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'items' => [['description' => 'x', 'amount' => 100, 'treatment_plan_item_id' => $otherPatientsTpi->id]],
+        ])->assertSessionHasErrors('items.0.treatment_plan_item_id');
+        $this->post(route('invoices.store'), [
+            'patient_id' => $patient->id,
+            'discount_amount' => 500,
+            'items' => [['description' => 'x', 'amount' => 100]],
+        ])->assertSessionHasErrors('discount_amount');
+
+        $this->assertSame(0, Invoice::count());
+    }
+
+    public function test_show_returns_the_invoice_with_derived_figures(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->issued()->create(['discount_amount' => 100]);
+        InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $invoice->id, 'amount' => 400]);
+
+        $response = $this->get(route('invoices.show', $invoice));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Invoices/Show')
+            ->where('invoice.number', $invoice->number())
+            ->where('invoice.subtotal', 1000.0)
+            ->where('invoice.total', 900.0)
+            ->where('invoice.amount_paid', 400.0)
+            ->where('invoice.balance', 500.0)
+            ->where('invoice.is_paid', false)
+            ->has('invoice.items', 1)
+            ->has('invoice.payments', 1)
+        );
+    }
+
+    public function test_show_exposes_linkable_treatment_plan_items_for_the_patient(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $invoice = Invoice::factory()->create(['patient_id' => $patient->id]);
+        $open = TreatmentPlanItem::factory()->create(['patient_id' => $patient->id, 'status' => 'planned']);
+        TreatmentPlanItem::factory()->create(['patient_id' => $patient->id, 'status' => 'cancelled']);
+
+        $response = $this->get(route('invoices.show', $invoice));
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('treatmentPlanItems', 1)
+            ->where('treatmentPlanItems.0.id', $open->id)
+        );
+    }
 }
