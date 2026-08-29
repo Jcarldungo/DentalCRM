@@ -421,4 +421,56 @@ class InvoiceTest extends TestCase
         $this->get(route('invoices.index', ['status' => 'nonsense']))
             ->assertSessionHasErrors('status');
     }
+
+    public function test_patient_show_lists_only_that_patients_invoices_with_derived_figures(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create();
+        $other = Patient::factory()->create();
+
+        $invoice = Invoice::factory()->issued()->create(['patient_id' => $patient->id, 'discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $invoice->id, 'amount' => 250]);
+        Invoice::factory()->create(['patient_id' => $other->id]);
+
+        $response = $this->get(route('patients.show', $patient));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Patients/Show')
+            ->has('invoices', 1)
+            ->where('invoices.0.id', $invoice->id)
+            ->where('invoices.0.number', $invoice->number())
+            ->where('invoices.0.total', 1000)
+            ->where('invoices.0.amount_paid', 250)
+            ->where('invoices.0.balance', 750)
+            ->where('invoices.0.is_paid', false)
+        );
+    }
+
+    public function test_dashboard_outstanding_totals_only_issued_invoices_with_a_balance(): void
+    {
+        $this->actingUser();
+
+        $outstanding = Invoice::factory()->issued()->create(['discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $outstanding->id, 'amount' => 1000]);
+        Payment::factory()->create(['invoice_id' => $outstanding->id, 'amount' => 200]);
+
+        $paid = Invoice::factory()->issued()->create(['discount_amount' => 0]);
+        InvoiceItem::factory()->create(['invoice_id' => $paid->id, 'amount' => 500]);
+        Payment::factory()->create(['invoice_id' => $paid->id, 'amount' => 500]);
+
+        $draft = Invoice::factory()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $draft->id, 'amount' => 9999]);
+
+        $void = Invoice::factory()->void()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $void->id, 'amount' => 9999]);
+
+        $response = $this->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Dashboard')
+            ->where('outstanding.total', 800)
+            ->where('outstanding.count', 1)
+        );
+    }
 }

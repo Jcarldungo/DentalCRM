@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DentalRecord;
+use App\Models\Invoice;
 use App\Models\Patient;
 use App\Models\Prescription;
 use App\Models\Provider;
@@ -89,6 +90,19 @@ class PatientController extends Controller
                     'appointment_start_time' => $rx->appointment?->start_time?->toIso8601String(),
                     'created_at' => $rx->created_at->toIso8601String(),
                     'creator_name' => $rx->creator->name,
+                ]),
+            'invoices' => $patient->invoices()
+                ->with(['items', 'payments'])
+                ->get()
+                ->map(fn (Invoice $invoice) => [
+                    'id' => $invoice->id,
+                    'number' => $invoice->number(),
+                    'status' => $invoice->status,
+                    'total' => $invoice->total(),
+                    'amount_paid' => $invoice->amountPaid(),
+                    'balance' => $invoice->balance(),
+                    'is_paid' => $invoice->isPaid(),
+                    'created_at' => $invoice->created_at->toIso8601String(),
                 ]),
             'providers' => Provider::orderBy('name')->get(['id', 'name']),
             'appointments' => $patient->appointments()
