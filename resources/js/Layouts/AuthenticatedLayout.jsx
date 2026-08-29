@@ -61,6 +61,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                     Workspace
                                 </NavLink>
                                 <NavLink
+                                    href={route('invoices.index')}
+                                    active={route().current('invoices.*')}
+                                >
+                                    Billing
+                                </NavLink>
+                                <NavLink
                                     href={route('inquiries.index')}
                                     active={route().current('inquiries.index')}
                                 >
@@ -199,6 +205,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('workspace.index')}
                         >
                             Workspace
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('invoices.index')}
+                            active={route().current('invoices.*')}
+                        >
+                            Billing
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             href={route('inquiries.index')}

@@ -3,6 +3,7 @@ import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { formatDate, formatDateTime, formatPeso } from './format';
 import PrescriptionsTab from './PrescriptionsTab';
+import BillingTab from './BillingTab';
 
 const TYPES = ['consultation', 'procedure', 'follow_up', 'other'];
 
@@ -81,7 +82,7 @@ function TreatmentPlanItemCard({ item, onEdit }) {
     );
 }
 
-export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, prescriptions, providers, appointments }) {
+export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, prescriptions, invoices, providers, appointments }) {
     const [tab, setTab] = useState('overview');
     const [showEditModal, setShowEditModal] = useState(false);
     const [showRecordModal, setShowRecordModal] = useState(false);
@@ -271,6 +272,13 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
                     >
                         Prescriptions
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => setTab('billing')}
+                        className={`pb-2 text-sm font-medium ${tab === 'billing' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
+                    >
+                        Billing
+                    </button>
                 </div>
 
                 {tab === 'overview' && (
@@ -446,6 +454,14 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
                         prescriptions={prescriptions}
                         providers={providers}
                         appointments={appointments}
+                    />
+                )}
+
+                {tab === 'billing' && (
+                    <BillingTab
+                        patient={patient}
+                        invoices={invoices}
+                        treatmentPlanItems={treatmentPlanItems}
                     />
                 )}
             </div>

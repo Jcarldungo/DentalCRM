@@ -185,6 +185,24 @@ aspirational, not a contract. Shipped so far:
   has no roles and no `Provider`↔`User` link, this is a shared view any
   staff member drives — not auto-scoped to a logged-in dentist (that
   needs auth work, deferred). No polling, no inline clinical editing.
+- **Phase 7, sub-project 1** — invoicing & payments, specced at
+  `docs/superpowers/specs/2026-08-29-invoicing-payments-design.md` — an
+  `invoices` / `invoice_items` / `payments` trio, an `Admin\InvoiceController`
+  (`index` / `show` / `store` / `update`, no `destroy`) and an
+  `Admin\PaymentController` (`store` only — payments are append-only).
+  An invoice starts as `draft` (line items, flat discount, and notes
+  editable; each line optionally links to a `TreatmentPlanItem`, which
+  pre-fills it and freezes a `provider_id` copy), is `issued` (freezes
+  the lines), and can be `void`ed — `draft` freely, `issued` only while
+  it has no payments. "Paid" is derived (`issued` + balance ≤ 0), never
+  stored; so are `subtotal` / `total` / `amount_paid` / `balance`
+  (computed from loaded relations via helper methods on `Invoice`).
+  Payments are rejected above the current balance. Invoice numbers are
+  derived display-only (`INV-` + padded id). Surfaces: a "Billing" tab
+  on `/patients/{patient}`, `/invoices/{invoice}`, a `/invoices` index
+  with status filters, and a dashboard outstanding-balances tile.
+  Nothing is transmitted — no receipt slip. No refunds, deposits, tax,
+  or revenue reporting yet.
 
 ## Known gaps
 
@@ -211,3 +229,17 @@ aspirational, not a contract. Shipped so far:
   `Patients/Show.jsx`) with only a docblock asserting they stay in sync.
   A shared const on `Appointment`/`TreatmentPlanItem` is the natural home
   once a fourth consumer appears.
+- Invoice numbers are derived from the primary key (`INV-` + padded
+  id) — not gapless, and they shift if rows are ever hard-deleted. A
+  real clinic needing statutory numbering would want a dedicated
+  counter.
+- `/invoices` loads every invoice (with items + payments) and filters
+  in PHP — no pagination or search, same as `patients.index`. The
+  money helpers (`balance()` etc.) also re-derive on every read
+  (index, patient tab, dashboard tile, invoice page); no cached
+  column. Fine at demo scale.
+- The "billable treatment-plan status" set
+  (`planned`/`scheduled`/`in_progress`/`completed`) is duplicated in
+  `InvoiceController::linkableTreatmentItems()` and `BillingTab.jsx` —
+  same docblock-sync situation as the appointment/treatment status
+  sets already noted.

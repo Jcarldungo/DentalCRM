@@ -26,7 +26,8 @@
 - Overpayment is rejected: a payment must be `> 0` and `<= the invoice's current balance`.
 - `discount_amount` is a flat peso figure, validated `>= 0` and `<= line-item subtotal`.
 - `created_by` is set server-side from `$request->user()->id` by direct assignment — never `$fillable`, never trusted from the request (same pattern as `TreatmentPlanItem` / `Prescription`).
-- The `Invoice` money helpers return `float` (via `round(..., 2)`), so those props serialize as JSON numbers. Assert them in tests with float literals (`900.0`, not `900`) — Inertia's `->where()` compares strictly. Payment/`decimal:2` model attributes read back as strings (`'400.00'`); assert those as strings.
+- The `Invoice` money helpers return `float` (via `round(..., 2)`). When asserting them **directly** in PHP (`$this->assertSame(1500.0, $invoice->subtotal())`) use float literals. But `assertInertia(...->where(...))` round-trips props through `json_decode(json_encode(...))` (see `AssertableInertia::fromTestResponse`), and `json_encode(900.0)` → `900` → decoded as **int**. So Inertia `->where()` assertions on whole-number money props must use **int literals** (`->where('invoice.total', 900)`, not `900.0`). Payment/`decimal:2` model attributes read back as strings (`'400.00'`); assert those as strings.
+- **Frontend page files must exist before their render tests run.** `resources/views/app.blade.php` does `@vite([..., "resources/js/Pages/{$page['component']}.jsx"])`, so any test that does `$this->get(<inertia page route>)` + `assertInertia`/`assertOk` throws `ViteException` unless that page's `.jsx` exists and `npm run build` has run (`/public/build` is gitignored). Tasks that add render tests for a not-yet-built page (Task 2 → `Invoices/Show`, Task 5 → `Invoices/Index`) create a **minimal interim page** in the same task and run `npm run build`; Task 8 replaces those stubs with the full pages.
 - Clean-codebase rules: no `dd()` / `console.log` / `var_dump()`, no unused imports, no commented-out code.
 - Commits carry NO `Co-Authored-By` trailer (matches repo history). Short imperative subjects.
 
@@ -809,10 +810,10 @@ Add to `tests/Feature/InvoiceTest.php` (inside the class):
         $response->assertInertia(fn ($page) => $page
             ->component('Invoices/Show')
             ->where('invoice.number', $invoice->number())
-            ->where('invoice.subtotal', 1000.0)
-            ->where('invoice.total', 900.0)
-            ->where('invoice.amount_paid', 400.0)
-            ->where('invoice.balance', 500.0)
+            ->where('invoice.subtotal', 1000)
+            ->where('invoice.total', 900)
+            ->where('invoice.amount_paid', 400)
+            ->where('invoice.balance', 500)
             ->where('invoice.is_paid', false)
             ->has('invoice.items', 1)
             ->has('invoice.payments', 1)
@@ -1688,20 +1689,39 @@ In `app/Http/Controllers/Admin/InvoiceController.php`, replace the `index()` stu
     }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 4: Create the minimal interim `Invoices/Index.jsx`**
+
+The index render tests do `$this->get(route('invoices.index'))` — `app.blade.php`'s `@vite` needs the page file. Create `resources/js/Pages/Invoices/Index.jsx` as a minimal interim page (Task 8 replaces it with the full version):
+
+```jsx
+import { Head } from '@inertiajs/react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+
+export default function Index() {
+    return (
+        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Billing</h2>}>
+            <Head title="Billing" />
+        </AuthenticatedLayout>
+    );
+}
+```
+
+Then run `npm run build`.
+
+- [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `"$HOME/.config/herd/bin/php.bat" artisan test --filter=InvoiceTest`
 Expected: PASS (28 tests).
 
-- [ ] **Step 5: Run the full suite**
+- [ ] **Step 6: Run the full suite**
 
 Run: `"$HOME/.config/herd/bin/php.bat" artisan test`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/Http/Controllers/Admin/InvoiceController.php tests/Feature/InvoiceTest.php
+git add app/Http/Controllers/Admin/InvoiceController.php resources/js/Pages/Invoices/Index.jsx tests/Feature/InvoiceTest.php
 git commit -m "Add the clinic-wide invoices index with status filters"
 ```
 
@@ -1743,9 +1763,9 @@ Add to `tests/Feature/InvoiceTest.php`:
             ->has('invoices', 1)
             ->where('invoices.0.id', $invoice->id)
             ->where('invoices.0.number', $invoice->number())
-            ->where('invoices.0.total', 1000.0)
-            ->where('invoices.0.amount_paid', 250.0)
-            ->where('invoices.0.balance', 750.0)
+            ->where('invoices.0.total', 1000)
+            ->where('invoices.0.amount_paid', 250)
+            ->where('invoices.0.balance', 750)
             ->where('invoices.0.is_paid', false)
         );
     }
@@ -1772,7 +1792,7 @@ Add to `tests/Feature/InvoiceTest.php`:
 
         $response->assertInertia(fn ($page) => $page
             ->component('Dashboard')
-            ->where('outstanding.total', 800.0)
+            ->where('outstanding.total', 800)
             ->where('outstanding.count', 1)
         );
     }
