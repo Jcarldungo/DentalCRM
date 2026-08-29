@@ -91,6 +91,7 @@ class DemoSeeder extends Seeder
                     'patient_id' => $patient->id,
                     'provider_id' => $provider->id,
                     'treatment' => ['Dental Cleaning', 'Composite Filling', 'Root Canal Treatment', 'Crown'][rand(0, 3)],
+                    'created_by' => $staff->id,
                 ])
                 : null;
 
@@ -127,7 +128,13 @@ class DemoSeeder extends Seeder
             }
         }
 
-        Invoice::factory()->count(2)->create(['patient_id' => $allPatients->random()->id]);
-        Invoice::factory()->void()->create(['patient_id' => $allPatients->random()->id]);
+        Invoice::factory()->count(2)->sequence(fn () => [
+            'patient_id' => $allPatients->random()->id,
+            'created_by' => $staff->id,
+        ])->create();
+        Invoice::factory()->void()->create([
+            'patient_id' => $allPatients->random()->id,
+            'created_by' => $staff->id,
+        ]);
     }
 }

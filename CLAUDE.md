@@ -81,9 +81,12 @@ database must exist before `php artisan test` will work.
   first name + last initial.
 - **Prices are in Philippine pesos** (`₱`).
 - **No roles and no seeded login.** Every authenticated user is an equal
-  front-desk staff member. Register at `/register`;
-  `db:seed --class=DemoSeeder` creates patients/providers/appointments but
-  no user.
+  front-desk staff member. Register at `/register`.
+  `db:seed --class=DemoSeeder` creates patients/providers/appointments
+  plus exactly one throwaway staff `User` with random credentials (not
+  intended as a working login — you still register at `/register`). That
+  user only exists to own the `created_by` on the billing / treatment-plan
+  / records fixtures, whose columns are NOT NULL.
 - Clean-codebase rules: no `dd()`/`console.log`/`var_dump`, no unused
   imports, no commented-out code.
 
