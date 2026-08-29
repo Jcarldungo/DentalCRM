@@ -172,6 +172,19 @@ aspirational, not a contract. Shipped so far:
   into `resources/js/Pages/Patients/format.js`; the new tab body lives
   in its own `PrescriptionsTab.jsx` component (the other four tab bodies
   remain inline in `Show.jsx`).
+- **Phase 6, sub-project 5** — the dentist workspace, specced at
+  `docs/superpowers/specs/2026-08-29-dentist-workspace-design.md` — a
+  `/workspace` page (`Admin\WorkspaceController@index`, read-only, no
+  model/migration) showing one date's `scheduled`/`checked_in`/
+  `in_treatment`/`completed` appointments for a chosen provider (or all
+  active), ordered by `start_time`. Each row links to
+  `/patients/{patient}` and carries badges for that patient's open
+  treatment-plan items (`planned`/`scheduled`/`in_progress`) and active
+  prescriptions. Provider `<select>` + date input + prev/today/next,
+  each re-issuing an Inertia `GET` with `preserveState`. Because the app
+  has no roles and no `Provider`↔`User` link, this is a shared view any
+  staff member drives — not auto-scoped to a logged-in dentist (that
+  needs auth work, deferred). No polling, no inline clinical editing.
 
 ## Known gaps
 

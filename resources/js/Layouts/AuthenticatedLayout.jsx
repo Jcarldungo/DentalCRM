@@ -55,6 +55,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                     Queue
                                 </NavLink>
                                 <NavLink
+                                    href={route('workspace.index')}
+                                    active={route().current('workspace.index')}
+                                >
+                                    Workspace
+                                </NavLink>
+                                <NavLink
                                     href={route('inquiries.index')}
                                     active={route().current('inquiries.index')}
                                 >
@@ -187,6 +193,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('queue.index')}
                         >
                             Queue
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('workspace.index')}
+                            active={route().current('workspace.index')}
+                        >
+                            Workspace
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             href={route('inquiries.index')}
