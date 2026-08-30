@@ -2,9 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,6 +23,15 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Paired with HSTS from SecurityHeaders and SESSION_SECURE_COOKIE
+        // from .env.production.example. Behind TLS termination the request
+        // itself looks plaintext to PHP, so without this the signed
+        // appointment-lookup links go out as http:// and then fail
+        // signature validation when the recipient opens them over https://.
+        if ($this->app->isProduction()) {
+            URL::forceScheme('https');
+        }
 
         // No ->uncompromised(): that rule calls the HaveIBeenPwned API over
         // the network on every password set, which this app avoids

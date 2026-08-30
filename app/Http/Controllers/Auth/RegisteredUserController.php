@@ -13,6 +13,7 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RegisteredUserController extends Controller
@@ -32,7 +33,7 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): SymfonyResponse
     {
         $this->abortIfRegistrationClosed();
 
@@ -59,7 +60,9 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // A full page load, not a client-side redirect — see
+        // AuthenticatedSessionController::store() for why.
+        return Inertia::location(route('dashboard'));
     }
 
     /**

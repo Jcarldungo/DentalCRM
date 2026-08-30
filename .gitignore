@@ -1,8 +1,11 @@
 *.log
 .DS_Store
+# Broad, with explicit negations: a deployer creating .env.staging or
+# .env.local with live credentials must not be able to commit it silently.
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
+!.env.production.example
 .phpactor.json
 .phpunit.result.cache
 /.fleet

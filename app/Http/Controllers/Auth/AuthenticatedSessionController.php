@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -26,14 +27,22 @@ class AuthenticatedSessionController extends Controller
 
     /**
      * Handle an incoming authentication request.
+     *
+     * Inertia::location(), not redirect(): the login page is served to a
+     * guest, so its document carries only the narrow public Ziggy route
+     * group (config/ziggy.php). An ordinary redirect is followed as a
+     * client-side visit, which never re-renders app.blade.php — the staff
+     * app would then be running with the guest's route map and every
+     * staff route() call would throw. This forces one full page load, and
+     * a shared front-desk terminal gets a clean client state along with it.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): SymfonyResponse
     {
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return Inertia::location(redirect()->intended(route('dashboard'))->getTargetUrl());
     }
 
     /**

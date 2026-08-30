@@ -32,7 +32,21 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                // An explicit projection, not the whole model. Sharing
+                // $request->user() means "whatever columns users has", so
+                // the day someone adds two_factor_secret or an api_token
+                // it is serialized into the data-page attribute of every
+                // rendered page with no code change to review.
+                // email_verified_at is here because the profile page's
+                // "resend verification email" prompt keys off it. Add a
+                // field only when a page genuinely needs it.
+                'user' => $request->user()?->only('id', 'name', 'email', 'email_verified_at'),
+            ],
+            // One-shot feedback for the toast in AuthenticatedLayout. Kept
+            // to a fixed shape so a page can't be handed arbitrary keys.
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }

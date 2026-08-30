@@ -80,4 +80,30 @@ class StaffRouteProtectionTest extends TestCase
 
         $this->actingAs($user)->get('/profile')->assertOk();
     }
+
+    /**
+     * The shared auth prop is an explicit projection, not the User model.
+     * Sharing the model means "whatever columns users has", so the day
+     * someone adds two_factor_secret or an api_token it is serialized into
+     * the data-page attribute of every rendered page with no code change
+     * to review. This test fails when that happens.
+     */
+    public function test_the_shared_auth_user_prop_carries_only_the_expected_fields(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->get(route('dashboard'))->assertInertia(function ($page) {
+            $user = $page->toArray()['props']['auth']['user'];
+
+            $this->assertSame(
+                ['id', 'name', 'email', 'email_verified_at'],
+                array_keys($user),
+            );
+        });
+    }
+
+    public function test_a_guest_gets_a_null_auth_user(): void
+    {
+        $this->get(route('home'))->assertInertia(fn ($page) => $page->where('auth.user', null));
+    }
 }
