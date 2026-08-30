@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -17,6 +18,20 @@ class PasswordResetTest extends TestCase
         $response = $this->get('/forgot-password');
 
         $response->assertStatus(200);
+    }
+
+    public function test_the_response_is_identical_for_a_known_and_an_unknown_email(): void
+    {
+        $user = User::factory()->create();
+
+        $knownResponse = $this->post('/forgot-password', ['email' => $user->email]);
+        $unknownResponse = $this->post('/forgot-password', ['email' => 'nobody@example.com']);
+
+        $knownResponse->assertSessionHasNoErrors();
+        $unknownResponse->assertSessionHasNoErrors();
+
+        $knownResponse->assertSessionHas('status', __(Password::RESET_LINK_SENT));
+        $unknownResponse->assertSessionHas('status', __(Password::RESET_LINK_SENT));
     }
 
     public function test_reset_password_link_can_be_requested(): void
