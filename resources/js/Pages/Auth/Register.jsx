@@ -11,6 +11,7 @@ export default function Register() {
         email: '',
         password: '',
         password_confirmation: '',
+        registration_code: '',
     });
 
     const submit = (e) => {
@@ -98,6 +99,33 @@ export default function Register() {
 
                     <InputError
                         message={errors.password_confirmation}
+                        className="mt-2"
+                    />
+                </div>
+
+                <div className="mt-4">
+                    <InputLabel
+                        htmlFor="registration_code"
+                        value="Clinic registration code"
+                    />
+
+                    <TextInput
+                        id="registration_code"
+                        name="registration_code"
+                        value={data.registration_code}
+                        className="mt-1 block w-full"
+                        onChange={(e) =>
+                            setData('registration_code', e.target.value)
+                        }
+                        required
+                    />
+
+                    <p className="mt-1 text-sm text-gray-500">
+                        Ask the practice manager for this.
+                    </p>
+
+                    <InputError
+                        message={errors.registration_code}
                         className="mt-2"
                     />
                 </div>

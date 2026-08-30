@@ -39,4 +39,13 @@ return [
     'contact_phone' => '(02) 8123 4567',
     'contact_email' => 'hello@harborviewdental.example',
 
+    /*
+     * The shared code a new staff member must supply at /register.
+     * Empty or unset disables self-registration entirely — GET and POST
+     * /register both 403. A real deployment sets this to a strong value,
+     * shares it out of band with incoming staff, and may blank it again
+     * once onboarding is finished.
+     */
+    'registration_code' => env('REGISTRATION_CODE'),
+
 ];

@@ -13,6 +13,7 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RegisteredUserController extends Controller
 {
@@ -21,6 +22,8 @@ class RegisteredUserController extends Controller
      */
     public function create(): Response
     {
+        $this->abortIfRegistrationClosed();
+
         return Inertia::render('Auth/Register');
     }
 
@@ -31,11 +34,20 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->abortIfRegistrationClosed();
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'registration_code' => ['required', 'string'],
         ]);
+
+        if (! hash_equals((string) config('clinic.registration_code'), $request->string('registration_code')->value())) {
+            throw ValidationException::withMessages([
+                'registration_code' => 'That registration code is not correct.',
+            ]);
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -48,5 +60,17 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         return redirect(route('dashboard', absolute: false));
+    }
+
+    /**
+     * Self-registration is a deployment-time choice, not a permanent
+     * feature — blanking the config value turns it off without a
+     * deploy of route changes.
+     *
+     * @throws HttpException
+     */
+    protected function abortIfRegistrationClosed(): void
+    {
+        abort_if(blank(config('clinic.registration_code')), 403);
     }
 }
