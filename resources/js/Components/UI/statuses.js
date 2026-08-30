@@ -122,8 +122,8 @@ export const inquiryStatus = make({
 export const TOOTH_CONDITIONS = {
     healthy: {
         label: 'Healthy',
-        swatch: 'border-emerald-300 bg-emerald-50 text-emerald-900',
-        dot: 'border-emerald-300 bg-emerald-50',
+        swatch: 'border-emerald-400 bg-emerald-100 text-emerald-900',
+        dot: 'border-emerald-400 bg-emerald-100',
     },
     caries: {
         label: 'Caries',
@@ -132,8 +132,8 @@ export const TOOTH_CONDITIONS = {
     },
     filling: {
         label: 'Filling',
-        swatch: 'border-brand-300 bg-brand-50 text-brand-900',
-        dot: 'border-brand-300 bg-brand-50',
+        swatch: 'border-brand-400 bg-brand-100 text-brand-900',
+        dot: 'border-brand-400 bg-brand-100',
     },
     crown: {
         label: 'Crown',

@@ -5,7 +5,7 @@ import Modal from '@/Components/UI/Modal';
 import { DetailItem, EmptyState, PageContainer, SectionHeading } from '@/Components/UI/Page';
 import StatusBadge from '@/Components/UI/StatusBadge';
 import Tabs, { TabPanel } from '@/Components/UI/Tabs';
-import { treatmentPriority, treatmentStatus } from '@/Components/UI/statuses';
+import { toothCondition, treatmentPriority, treatmentStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
 import { ClipboardList, FileText, Plus } from 'lucide-react';
@@ -644,7 +644,7 @@ export default function Show({
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-sm font-medium text-slate-900">
-                                        {entry.condition.replace('_', ' ')}
+                                        {toothCondition(entry.condition).label}
                                         {index === 0 && (
                                             <span className="ms-2 text-xs font-normal text-brand-700">current</span>
                                         )}
@@ -678,7 +678,7 @@ export default function Show({
                         >
                             {TOOTH_CONDITIONS.map((condition) => (
                                 <option key={condition} value={condition}>
-                                    {condition.replace('_', ' ')}
+                                    {toothCondition(condition).label}
                                 </option>
                             ))}
                         </SelectField>

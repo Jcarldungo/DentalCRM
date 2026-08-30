@@ -33,15 +33,10 @@ export const ALL_TEETH = [...UPPER_RIGHT, ...UPPER_LEFT, ...LOWER_LEFT, ...LOWER
     (a, b) => a - b,
 );
 
-/**
- * A tooth's current condition is its newest entry — derived here, never
- * stored, because the ToothCondition table is append-only.
- */
-export function currentConditionFor(toothConditions, toothNumber) {
-    return toothConditions.find((entry) => entry.tooth_number === toothNumber) ?? null;
-}
-
 function Tooth({ number, entries, selected, onSelect }) {
+    // A tooth's current condition is its newest entry — derived, never
+    // stored, because ToothCondition is append-only. `entries` arrives
+    // newest-first from Patient::toothConditions().
     const current = entries[0] ?? null;
     const style = current ? toothCondition(current.condition) : UNCHARTED_TOOTH;
     const label = current ? toothCondition(current.condition).label : 'no history';
@@ -115,9 +110,9 @@ export default function DentalChart({ toothConditions, selected, onSelect }) {
             {/* Scrolls inside itself rather than widening the document. */}
             <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
                 <div className="mx-auto w-max">
-                    <div className="mb-1.5 flex items-center justify-between px-6 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                        <span>Upper</span>
-                    </div>
+                    <p className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Upper
+                    </p>
 
                     <div className="flex items-center gap-2">
                         <SideMarker>R</SideMarker>
@@ -141,9 +136,9 @@ export default function DentalChart({ toothConditions, selected, onSelect }) {
                         <SideMarker>L</SideMarker>
                     </div>
 
-                    <div className="mt-1.5 flex items-center justify-between px-6 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                        <span>Lower</span>
-                    </div>
+                    <p className="mt-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Lower
+                    </p>
                 </div>
             </div>
 
