@@ -38,7 +38,7 @@ class DashboardController extends Controller
             ],
             'inventory' => [
                 'low_count' => $activeItems
-                    ->filter(fn (InventoryItem $item) => (int) $item->on_hand <= $item->reorder_threshold)
+                    ->filter(fn (InventoryItem $item) => InventoryItem::isLowFor((int) $item->on_hand, $item->reorder_threshold))
                     ->count(),
                 'expiring_count' => $activeItems
                     ->filter(fn (InventoryItem $item) => $item->isExpiringSoon())

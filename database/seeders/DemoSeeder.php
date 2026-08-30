@@ -176,7 +176,7 @@ class DemoSeeder extends Seeder
                 'created_by' => $staff->id,
             ]);
 
-            foreach (range(1, rand(1, 3)) as $ignored) {
+            for ($n = 0; $n < rand(1, 3); $n++) {
                 StockMovement::factory()->create([
                     'inventory_item_id' => $item->id,
                     'type' => 'consumed',

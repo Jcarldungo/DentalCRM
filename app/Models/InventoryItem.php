@@ -55,7 +55,7 @@ class InventoryItem extends Model
 
     public function isLow(): bool
     {
-        return $this->onHand() <= $this->reorder_threshold;
+        return self::isLowFor($this->onHand(), $this->reorder_threshold);
     }
 
     public function isExpiringSoon(int $days = 30): bool
@@ -66,12 +66,21 @@ class InventoryItem extends Model
 
     public function stockStatus(): string
     {
-        $onHand = $this->onHand();
+        return self::statusFor($this->onHand(), $this->reorder_threshold);
+    }
 
+    /** The low/out threshold rule — the single source shared by the model, controllers, and dashboard. */
+    public static function statusFor(int $onHand, int $threshold): string
+    {
         return match (true) {
             $onHand <= 0 => 'out',
-            $onHand <= $this->reorder_threshold => 'low',
+            $onHand <= $threshold => 'low',
             default => 'ok',
         };
+    }
+
+    public static function isLowFor(int $onHand, int $threshold): bool
+    {
+        return $onHand <= $threshold;
     }
 }

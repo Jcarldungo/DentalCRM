@@ -252,7 +252,7 @@ class InventoryItemTest extends TestCase
         $expiring = InventoryItem::factory()->create(['expiry_date' => '2026-09-10', 'reorder_threshold' => 0]);
         StockMovement::factory()->create(['inventory_item_id' => $expiring->id, 'quantity' => 40]);
 
-        $archivedLow = InventoryItem::factory()->archived()->create(['reorder_threshold' => 10]);
+        InventoryItem::factory()->archived()->create(['reorder_threshold' => 10]);
 
         $this->get(route('dashboard'))->assertInertia(fn ($page) => $page
             ->component('Dashboard')

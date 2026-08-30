@@ -317,3 +317,7 @@ aspirational, not a contract. Shipped so far:
 - `stock_movements.unit_cost` is captured on `received` movements but
   nothing aggregates it — no inventory valuation or purchase-spend
   reporting yet.
+- Inventory movement overdraw protection is a check-then-act guarded by
+  a `SELECT ... FOR UPDATE` on the item row (the `PaymentController`
+  pattern) — correct for a single node, and the lock makes concurrent
+  movements on one item safe.

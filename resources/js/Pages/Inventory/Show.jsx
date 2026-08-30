@@ -2,9 +2,8 @@ import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { formatDate, formatPeso } from '@/Pages/Patients/format';
+import { CATEGORIES, UNITS, STATUS_BADGE, categoryLabel, Field, Dialog } from './shared';
 
-const CATEGORIES = ['consumable', 'instrument', 'ppe', 'medication', 'lab_material', 'office'];
-const UNITS = ['box', 'piece', 'pair', 'pack', 'cartridge', 'bottle', 'tube', 'roll', 'ml'];
 const MOVEMENT_TYPES = ['received', 'consumed', 'adjustment', 'expired'];
 
 const TYPE_BADGE = {
@@ -14,35 +13,8 @@ const TYPE_BADGE = {
     expired: 'bg-red-100 text-red-800',
 };
 
-function categoryLabel(category) {
-    return category.replace('_', ' ');
-}
-
 function signedQty(qty) {
     return qty > 0 ? `+${qty}` : `${qty}`;
-}
-
-function Field({ label, error, children }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm">{label}</label>
-            {children}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-        </div>
-    );
-}
-
-function Dialog({ children, onClose }) {
-    return (
-        <div
-            className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
-            onClick={onClose}
-        >
-            <div className="my-8 w-full max-w-lg rounded bg-white p-6" onClick={(e) => e.stopPropagation()}>
-                {children}
-            </div>
-        </div>
-    );
 }
 
 export default function Show({ item }) {
@@ -116,9 +88,16 @@ export default function Show({ item }) {
                             <p className="text-3xl font-semibold">
                                 {item.on_hand} <span className="text-lg text-gray-500">{item.unit}</span>
                             </p>
-                            <p className="mt-1 text-sm capitalize text-gray-500">
-                                {categoryLabel(item.category)} · reorder at {item.reorder_threshold}
-                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <span
+                                    className={`inline-block rounded border px-2 py-0.5 text-xs uppercase ${STATUS_BADGE[item.stock_status]}`}
+                                >
+                                    {item.stock_status}
+                                </span>
+                                <span className="text-sm capitalize text-gray-500">
+                                    {categoryLabel(item.category)} · reorder at {item.reorder_threshold}
+                                </span>
+                            </div>
                             {item.is_expiring_soon && item.expiry_date && (
                                 <p className="mt-1 text-sm text-amber-700">Expiring {formatDate(item.expiry_date)}</p>
                             )}

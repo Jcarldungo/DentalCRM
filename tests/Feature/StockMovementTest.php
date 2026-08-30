@@ -135,6 +135,42 @@ class StockMovementTest extends TestCase
         $this->assertSame(-2, StockMovement::where('type', 'adjustment')->sole()->quantity);
     }
 
+    public function test_adjustment_increase_adds_stock(): void
+    {
+        $this->actingUser();
+        $item = $this->stockedItem(10);
+
+        $this->post(route('inventory-movements.store', $item), [
+            'type' => 'adjustment',
+            'quantity' => 2,
+            'direction' => 'increase',
+            'reason' => 'Recount',
+        ])->assertRedirect();
+
+        $movement = StockMovement::where('type', 'adjustment')->sole();
+        $this->assertSame(2, $movement->quantity);
+
+        $item->load('movements');
+        $this->assertSame(12, $item->onHand());
+    }
+
+    public function test_movements_are_allowed_against_an_archived_item(): void
+    {
+        $this->actingUser();
+        $item = InventoryItem::factory()->archived()->create();
+        StockMovement::factory()->create([
+            'inventory_item_id' => $item->id,
+            'type' => 'received',
+            'quantity' => 20,
+        ]);
+
+        $this->post(route('inventory-movements.store', $item), ['type' => 'consumed', 'quantity' => 5])
+            ->assertRedirect();
+
+        $item->load('movements');
+        $this->assertSame(15, $item->onHand());
+    }
+
     public function test_type_and_quantity_are_validated(): void
     {
         $this->actingUser();

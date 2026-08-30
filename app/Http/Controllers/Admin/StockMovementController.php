@@ -25,7 +25,7 @@ class StockMovementController extends Controller
         $validated = $request->validate([
             'type' => ['required', Rule::in(StockMovement::TYPES)],
             'quantity' => ['required', 'integer', 'min:1', 'max:1000000'],
-            'direction' => ['required_if:type,adjustment', Rule::in(['increase', 'decrease'])],
+            'direction' => ['nullable', 'required_if:type,adjustment', Rule::in(['increase', 'decrease'])],
             'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'reason' => ['required_if:type,adjustment', 'nullable', 'string', 'max:255'],
             'occurred_on' => ['nullable', 'date'],
@@ -35,7 +35,7 @@ class StockMovementController extends Controller
         $signed = match ($validated['type']) {
             'received' => $magnitude,
             'consumed', 'expired' => -$magnitude,
-            'adjustment' => ($validated['direction'] ?? 'increase') === 'increase' ? $magnitude : -$magnitude,
+            'adjustment' => $validated['direction'] === 'increase' ? $magnitude : -$magnitude,
         };
 
         $userId = $request->user()->id;

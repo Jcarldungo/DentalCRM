@@ -1,7 +1,8 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { formatDate } from '@/Pages/Patients/format';
+import { CATEGORIES, UNITS, STATUS_BADGE, categoryLabel, Field, Dialog } from './shared';
 
 const FILTERS = [
     { key: 'all', label: 'All' },
@@ -9,19 +10,6 @@ const FILTERS = [
     { key: 'expiring', label: 'Expiring' },
     { key: 'archived', label: 'Archived' },
 ];
-
-const CATEGORIES = ['consumable', 'instrument', 'ppe', 'medication', 'lab_material', 'office'];
-const UNITS = ['box', 'piece', 'pair', 'pack', 'cartridge', 'bottle', 'tube', 'roll', 'ml'];
-
-const STATUS_BADGE = {
-    ok: 'bg-green-100 text-green-800 border-green-300',
-    low: 'bg-amber-100 text-amber-800 border-amber-300',
-    out: 'bg-red-100 text-red-800 border-red-300',
-};
-
-function categoryLabel(category) {
-    return category.replace('_', ' ');
-}
 
 function emptyMessage(filter) {
     switch (filter) {
@@ -36,32 +24,25 @@ function emptyMessage(filter) {
     }
 }
 
-function Field({ label, error, children }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm">{label}</label>
-            {children}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-        </div>
-    );
-}
-
 export default function Index({ items, filters }) {
     const [showCreate, setShowCreate] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
 
-    function reload(next) {
-        router.get(
-            route('inventory.index'),
-            { filter: next.filter ?? filters.filter, search: (next.search ?? search) || undefined },
-            { preserveState: true, preserveScroll: true, replace: true },
-        );
-    }
+    useEffect(() => {
+        if (search === (filters.search ?? '')) {
+            return undefined;
+        }
 
-    function onSearch(value) {
-        setSearch(value);
-        reload({ search: value });
-    }
+        const timer = setTimeout(() => {
+            router.get(
+                route('inventory.index'),
+                { filter: filters.filter, search: search || undefined },
+                { preserveState: true, preserveScroll: true, replace: true },
+            );
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [search, filters.filter, filters.search]);
 
     const form = useForm({
         name: '',
@@ -92,10 +73,15 @@ export default function Index({ items, filters }) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap gap-2">
                         {FILTERS.map((f) => (
-                            <button
+                            <Link
                                 key={f.key}
-                                type="button"
-                                onClick={() => reload({ filter: f.key })}
+                                href={route('inventory.index', {
+                                    filter: f.key,
+                                    search: search || undefined,
+                                })}
+                                preserveState
+                                preserveScroll
+                                replace
                                 className={`rounded border px-3 py-1 text-sm ${
                                     filters.filter === f.key
                                         ? 'border-gray-900 bg-gray-900 text-white'
@@ -103,7 +89,7 @@ export default function Index({ items, filters }) {
                                 }`}
                             >
                                 {f.label}
-                            </button>
+                            </Link>
                         ))}
                     </div>
                     <button
@@ -119,7 +105,7 @@ export default function Index({ items, filters }) {
                     type="search"
                     placeholder="Search by name"
                     value={search}
-                    onChange={(e) => onSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value)}
                     className="w-full max-w-xs rounded border px-3 py-2 text-sm"
                 />
 
@@ -175,8 +161,13 @@ export default function Index({ items, filters }) {
             </div>
 
             {showCreate && (
-                <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-                    <form onSubmit={submitCreate} className="my-8 w-full max-w-lg space-y-4 rounded bg-white p-6">
+                <Dialog
+                    onClose={() => {
+                        form.clearErrors();
+                        setShowCreate(false);
+                    }}
+                >
+                    <form onSubmit={submitCreate} className="space-y-4">
                         <h3 className="font-semibold">New item</h3>
 
                         <Field label="Name" error={form.errors.name}>
@@ -286,7 +277,7 @@ export default function Index({ items, filters }) {
                             </button>
                         </div>
                     </form>
-                </div>
+                </Dialog>
             )}
         </AuthenticatedLayout>
     );

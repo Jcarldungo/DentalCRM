@@ -15,7 +15,7 @@ use Inertia\Response;
 /**
  * Inventory items and their derived stock levels. index() and show()
  * project on-hand / status from the append-only stock_movements ledger.
- * store() / update() (Task 3) manage the mutable item record; there is
+ * store() / update() manage the mutable item record; there is
  * no destroy() — retiring an item means setting active = false.
  */
 class InventoryItemController extends Controller
@@ -57,7 +57,7 @@ class InventoryItemController extends Controller
                     'unit' => $item->unit,
                     'on_hand' => $onHand,
                     'reorder_threshold' => $item->reorder_threshold,
-                    'stock_status' => $onHand <= 0 ? 'out' : ($onHand <= $item->reorder_threshold ? 'low' : 'ok'),
+                    'stock_status' => InventoryItem::statusFor($onHand, $item->reorder_threshold),
                     'supplier' => $item->supplier,
                     'expiry_date' => $item->expiry_date?->toDateString(),
                     'is_expiring_soon' => $item->isExpiringSoon(),
