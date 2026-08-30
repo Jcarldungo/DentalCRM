@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\StockMovement;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -76,6 +78,75 @@ class InventoryItemController extends Controller
         return Inertia::render('Inventory/Show', [
             'item' => $this->present($inventoryItem),
         ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'category' => ['required', Rule::in(InventoryItem::CATEGORIES)],
+            'unit' => ['required', 'string', 'max:20'],
+            'reorder_threshold' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'supplier' => ['nullable', 'string', 'max:255'],
+            'expiry_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string'],
+            'opening_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+        ]);
+
+        $userId = $request->user()->id;
+
+        $item = DB::transaction(function () use ($validated, $userId) {
+            $item = new InventoryItem([
+                'name' => $validated['name'],
+                'category' => $validated['category'],
+                'unit' => $validated['unit'],
+                'reorder_threshold' => $validated['reorder_threshold'] ?? 0,
+                'supplier' => $validated['supplier'] ?? null,
+                'expiry_date' => $validated['expiry_date'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            $item->active = true;
+            $item->created_by = $userId;
+            $item->save();
+
+            $opening = (int) ($validated['opening_quantity'] ?? 0);
+            if ($opening > 0) {
+                $movement = $item->movements()->make([
+                    'type' => 'adjustment',
+                    'quantity' => $opening,
+                    'reason' => 'Opening balance',
+                    'occurred_on' => now()->toDateString(),
+                ]);
+                $movement->created_by = $userId;
+                $movement->save();
+            }
+
+            return $item;
+        });
+
+        return redirect()->route('inventory.show', $item);
+    }
+
+    public function update(Request $request, InventoryItem $inventoryItem): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'category' => ['sometimes', 'required', Rule::in(InventoryItem::CATEGORIES)],
+            'unit' => ['sometimes', 'required', 'string', 'max:20'],
+            'reorder_threshold' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:1000000'],
+            'supplier' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'expiry_date' => ['sometimes', 'nullable', 'date'],
+            'notes' => ['sometimes', 'nullable', 'string'],
+            'active' => ['sometimes', 'boolean'],
+        ]);
+
+        if (array_key_exists('reorder_threshold', $validated) && $validated['reorder_threshold'] === null) {
+            $validated['reorder_threshold'] = 0;
+        }
+
+        $inventoryItem->update($validated);
+
+        return back();
     }
 
     /**

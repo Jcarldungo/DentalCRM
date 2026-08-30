@@ -101,6 +101,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/invoices/{invoice}/payments', [PaymentController::class, 'store'])->name('invoice-payments.store');
 
     Route::get('/inventory', [InventoryItemController::class, 'index'])->name('inventory.index');
+    Route::post('/inventory', [InventoryItemController::class, 'store'])->name('inventory.store');
+    Route::patch('/inventory/{inventoryItem}', [InventoryItemController::class, 'update'])->name('inventory.update');
     Route::get('/inventory/{inventoryItem}', [InventoryItemController::class, 'show'])->name('inventory.show');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');

@@ -139,4 +139,105 @@ class InventoryItemTest extends TestCase
             ->where('item.movements.0.quantity', -4)
             ->where('item.movements.1.quantity', 20));
     }
+
+    public function test_it_creates_an_item_owned_by_the_current_user(): void
+    {
+        $user = $this->actingUser();
+        $other = User::factory()->create();
+
+        $this->post(route('inventory.store'), [
+            'name' => 'Composite Resin A2',
+            'category' => 'consumable',
+            'unit' => 'syringe',
+            'reorder_threshold' => 3,
+            'created_by' => $other->id,
+            'active' => false,
+        ])->assertRedirect();
+
+        $item = InventoryItem::sole();
+        $this->assertSame('Composite Resin A2', $item->name);
+        $this->assertSame($user->id, $item->created_by);
+        $this->assertTrue($item->active);
+    }
+
+    public function test_opening_quantity_creates_an_adjustment_movement(): void
+    {
+        $this->actingUser();
+
+        $this->post(route('inventory.store'), [
+            'name' => 'Cotton Rolls',
+            'category' => 'consumable',
+            'unit' => 'box',
+            'opening_quantity' => 40,
+        ])->assertRedirect();
+
+        $item = InventoryItem::sole();
+        $movement = $item->movements()->sole();
+        $this->assertSame('adjustment', $movement->type);
+        $this->assertSame(40, $movement->quantity);
+        $this->assertSame('Opening balance', $movement->reason);
+
+        $item->load('movements');
+        $this->assertSame(40, $item->onHand());
+    }
+
+    public function test_opening_quantity_of_zero_creates_no_movement(): void
+    {
+        $this->actingUser();
+
+        $this->post(route('inventory.store'), [
+            'name' => 'Face Masks',
+            'category' => 'ppe',
+            'unit' => 'box',
+            'opening_quantity' => 0,
+        ]);
+
+        $this->assertSame(0, StockMovement::count());
+    }
+
+    public function test_create_validation_blocks_bad_input(): void
+    {
+        $this->actingUser();
+
+        $this->post(route('inventory.store'), ['category' => 'consumable', 'unit' => 'box'])
+            ->assertSessionHasErrors('name');
+        $this->post(route('inventory.store'), ['name' => 'X', 'category' => 'nope', 'unit' => 'box'])
+            ->assertSessionHasErrors('category');
+        $this->post(route('inventory.store'), ['name' => 'X', 'category' => 'consumable', 'unit' => 'box', 'reorder_threshold' => -1])
+            ->assertSessionHasErrors('reorder_threshold');
+
+        $this->assertSame(0, InventoryItem::count());
+    }
+
+    public function test_it_updates_item_fields(): void
+    {
+        $this->actingUser();
+        $item = InventoryItem::factory()->create(['name' => 'Old', 'reorder_threshold' => 2]);
+
+        $this->patch(route('inventory.update', $item), ['name' => 'New', 'reorder_threshold' => 8])
+            ->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame('New', $item->name);
+        $this->assertSame(8, $item->reorder_threshold);
+    }
+
+    public function test_archiving_hides_an_item_then_restoring_shows_it(): void
+    {
+        $this->actingUser();
+        $item = InventoryItem::factory()->create();
+
+        $this->patch(route('inventory.update', $item), ['active' => false]);
+        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items', 0));
+        $this->get(route('inventory.index', ['filter' => 'archived']))
+            ->assertInertia(fn ($page) => $page->has('items', 1));
+
+        $this->patch(route('inventory.update', $item), ['active' => true]);
+        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items', 1));
+    }
+
+    public function test_there_is_no_inventory_destroy_route(): void
+    {
+        $this->assertFalse(Route::has('inventory.destroy'));
+    }
 }
