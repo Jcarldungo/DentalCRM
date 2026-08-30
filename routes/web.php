@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\PrescriptionController;
 use App\Http\Controllers\Admin\ProviderController;
 use App\Http\Controllers\Admin\QueueController;
 use App\Http\Controllers\Admin\ReportsController;
+use App\Http\Controllers\Admin\StockMovementController;
 use App\Http\Controllers\Admin\ToothConditionController;
 use App\Http\Controllers\Admin\TreatmentPlanItemController;
 use App\Http\Controllers\Admin\WorkspaceController;
@@ -104,6 +105,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/inventory', [InventoryItemController::class, 'store'])->name('inventory.store');
     Route::patch('/inventory/{inventoryItem}', [InventoryItemController::class, 'update'])->name('inventory.update');
     Route::get('/inventory/{inventoryItem}', [InventoryItemController::class, 'show'])->name('inventory.show');
+    Route::post('/inventory/{inventoryItem}/movements', [StockMovementController::class, 'store'])->name('inventory-movements.store');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');
