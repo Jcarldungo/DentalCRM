@@ -63,6 +63,25 @@ class PasswordUpdateTest extends TestCase
         $this->assertNotSame($originalToken, $user->fresh()->remember_token);
     }
 
+    public function test_updating_the_password_keeps_the_current_session_authenticated(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/dashboard')->assertOk();
+
+        $response = $this->actingAs($user)->from('/profile')->put('/password', [
+            'current_password' => 'password',
+            'password' => 'NewSecurePass123',
+            'password_confirmation' => 'NewSecurePass123',
+        ]);
+
+        $response->assertSessionHasNoErrors()->assertRedirect('/profile');
+
+        // The same session — no fresh actingAs(), no session manipulation —
+        // must still be authenticated after its own password change.
+        $this->get('/dashboard')->assertOk();
+    }
+
     public function test_a_sibling_session_is_logged_out_after_a_password_change(): void
     {
         $user = User::factory()->create(['password' => Hash::make('OldSecurePass123')]);
