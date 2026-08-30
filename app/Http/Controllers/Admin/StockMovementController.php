@@ -28,7 +28,10 @@ class StockMovementController extends Controller
             'direction' => ['nullable', 'required_if:type,adjustment', Rule::in(['increase', 'decrease'])],
             'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'reason' => ['required_if:type,adjustment', 'nullable', 'string', 'max:255'],
-            'occurred_on' => ['nullable', 'date'],
+            // Same reasoning as PaymentController::store's paid_on — a
+            // future-dated movement moves stock outside the period it is
+            // reported in. No lower bound.
+            'occurred_on' => ['nullable', 'date', 'before_or_equal:today'],
         ]);
 
         $magnitude = (int) $validated['quantity'];
@@ -37,6 +40,17 @@ class StockMovementController extends Controller
             'consumed', 'expired' => -$magnitude,
             'adjustment' => $validated['direction'] === 'increase' ? $magnitude : -$magnitude,
         };
+
+        // An archived item is filtered out of the default /inventory view
+        // and the dashboard low-stock tile, so stock received onto one
+        // lands where nobody looks. Decreases stay allowed: archiving an
+        // item that still holds stock is normal, and that stock has to be
+        // consumable or write-off-able afterwards or it is stranded.
+        if (! $inventoryItem->active && $signed > 0) {
+            throw ValidationException::withMessages([
+                'type' => 'This item is archived. Restore it before adding stock.',
+            ]);
+        }
 
         $userId = $request->user()->id;
 

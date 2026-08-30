@@ -26,7 +26,11 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
             'method' => ['required', Rule::in(Payment::METHODS)],
-            'paid_on' => ['nullable', 'date'],
+            // A back-dated payment reduces the balance immediately but lands
+            // outside every /reports range, so collected revenue silently
+            // under-reports while A/R correctly drops. No lower bound: a
+            // floor would need a business rule this app doesn't have.
+            'paid_on' => ['nullable', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
@@ -35,6 +39,14 @@ class PaymentController extends Controller
 
         DB::transaction(function () use ($invoice, $validated, $userId) {
             $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+
+            // Re-check status, not just the balance: the pre-lock check
+            // above ran against a snapshot, so a concurrent void could
+            // otherwise land a payment on a voided invoice. This makes the
+            // invariant symmetric with InvoiceController, which already
+            // refuses to void an invoice that has payments.
+            abort_unless($locked->status === 'issued', 403);
+
             $locked->load(['items', 'payments']);
             $balance = $locked->balance();
 

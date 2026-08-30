@@ -143,6 +143,51 @@ class PaymentTest extends TestCase
         $this->assertSame(0, Payment::count());
     }
 
+    public function test_a_payment_against_a_voided_invoice_is_refused(): void
+    {
+        $this->actingUser();
+        $invoice = $this->issuedInvoice();
+        $invoice->forceFill(['status' => 'void', 'voided_at' => now()])->save();
+
+        $this->post(route('invoice-payments.store', $invoice), ['amount' => 100, 'method' => 'cash'])
+            ->assertForbidden();
+
+        $this->assertSame(0, Payment::count());
+    }
+
+    /**
+     * The pre-lock abort_unless is a cheap early exit; the check that holds
+     * under a concurrent void is the one inside the transaction. A single
+     * test connection can't actually interleave two transactions, so assert
+     * the shape instead: the status check appears both before and inside
+     * the DB::transaction closure.
+     */
+    public function test_invoice_status_is_checked_again_inside_the_transaction(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Admin/PaymentController.php'));
+        [, $insideTransaction] = explode('DB::transaction(', $source, 2);
+
+        $this->assertStringContainsString(
+            "abort_unless(\$locked->status === 'issued', 403)",
+            $insideTransaction,
+            'The locked invoice\'s status must be re-checked inside the transaction.',
+        );
+    }
+
+    public function test_a_future_paid_on_date_is_rejected(): void
+    {
+        $this->actingUser();
+        $invoice = $this->issuedInvoice();
+
+        $this->post(route('invoice-payments.store', $invoice), [
+            'amount' => 100,
+            'method' => 'cash',
+            'paid_on' => now()->addDay()->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        $this->assertSame(0, Payment::count());
+    }
+
     public function test_payment_controller_has_no_write_methods_beyond_store(): void
     {
         $this->assertFalse(method_exists(\App\Http\Controllers\Admin\PaymentController::class, 'update'));

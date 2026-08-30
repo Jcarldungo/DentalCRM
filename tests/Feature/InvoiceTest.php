@@ -25,6 +25,67 @@ class InvoiceTest extends TestCase
         return $user;
     }
 
+    public function test_a_voided_invoice_cannot_be_issued(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->void()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 500]);
+
+        $this->patch(route('invoices.update', $invoice), ['status' => 'issued'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('void', $invoice->fresh()->status);
+        $this->assertNotNull($invoice->fresh()->voided_at);
+    }
+
+    public function test_a_draft_with_no_line_items_cannot_be_issued(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create();
+
+        $this->patch(route('invoices.update', $invoice), ['status' => 'issued'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('draft', $invoice->fresh()->status);
+    }
+
+    /**
+     * The legality of a transition has to be decided against the row read
+     * under the lock, not the pre-lock snapshot — otherwise a concurrent
+     * {void} + {issued} pair both pass their checks and one resurrects the
+     * other. A single test connection can't interleave transactions, so
+     * assert the shape: nothing decides anything before the lock is taken.
+     */
+    public function test_transition_legality_is_decided_under_the_lock(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Admin/InvoiceController.php'));
+        $afterSignature = last(explode('protected function transition(', $source));
+        // Stop at the next method so later methods' use of $invoice
+        // (present(), show()) doesn't leak into the assertions.
+        $body = preg_split('/\n    (public|protected|private) function /', $afterSignature)[0];
+
+        $this->assertStringContainsString('$from = $locked->status;', $body);
+        $this->assertStringContainsString('$locked->items()->count()', $body);
+        $this->assertStringContainsString('$locked->payments()->count()', $body);
+        $this->assertStringNotContainsString('$invoice->status', $body);
+        $this->assertStringNotContainsString('$invoice->items()', $body);
+    }
+
+    public function test_a_null_status_in_an_edit_payload_does_not_route_into_transition(): void
+    {
+        $this->actingUser();
+        $invoice = Invoice::factory()->create();
+        InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 100]);
+
+        $this->patch(route('invoices.update', $invoice), [
+            'status' => null,
+            'items' => [['description' => 'Consultation', 'amount' => 750]],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('draft', $invoice->fresh()->status);
+        $this->assertSame('Consultation', $invoice->fresh()->items->first()->description);
+    }
+
     public function test_invoice_number_is_derived_and_zero_padded(): void
     {
         $invoice = Invoice::factory()->create();

@@ -182,6 +182,45 @@ class StockMovementTest extends TestCase
             ->assertSessionHasErrors('quantity');
     }
 
+    /**
+     * Decreases against an archived item stay allowed (see the test above —
+     * stock held when the item was archived has to be runnable-down), but
+     * an increase would land stock in a place the default /inventory view
+     * and the dashboard tile both filter out.
+     */
+    public function test_stock_cannot_be_added_to_an_archived_item(): void
+    {
+        $this->actingUser();
+        $item = $this->stockedItem();
+        $item->update(['active' => false]);
+
+        $this->post(route('inventory-movements.store', $item), ['type' => 'received', 'quantity' => 5])
+            ->assertSessionHasErrors('type');
+
+        $this->post(route('inventory-movements.store', $item), [
+            'type' => 'adjustment',
+            'direction' => 'increase',
+            'quantity' => 5,
+            'reason' => 'Recount',
+        ])->assertSessionHasErrors('type');
+
+        $this->assertSame(20, $item->fresh()->load('movements')->onHand());
+    }
+
+    public function test_a_future_occurred_on_date_is_rejected(): void
+    {
+        $this->actingUser();
+        $item = $this->stockedItem();
+
+        $this->post(route('inventory-movements.store', $item), [
+            'type' => 'received',
+            'quantity' => 5,
+            'occurred_on' => now()->addDay()->toDateString(),
+        ])->assertSessionHasErrors('occurred_on');
+
+        $this->assertSame(20, $item->fresh()->load('movements')->onHand());
+    }
+
     public function test_movements_are_append_only(): void
     {
         $this->assertFalse(Route::has('inventory-movements.update'));

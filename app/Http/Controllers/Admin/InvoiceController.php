@@ -67,7 +67,11 @@ class InvoiceController extends Controller
     {
         // Dual-mode PATCH: when both `status` and edit fields are present,
         // `status` wins (transition mode) and the edit fields are ignored.
-        if ($request->has('status')) {
+        // `filled`, not `has`: `has` is true for a present-but-null key, so
+        // an edit payload carrying `status: null` would route into
+        // transition() and die on "The status field is required" instead of
+        // saving. The whole draft-freeze guarantee rests on this branch.
+        if ($request->filled('status')) {
             return $this->transition($request, $invoice);
         }
 
@@ -98,27 +102,32 @@ class InvoiceController extends Controller
             'status' => ['required', Rule::in(Invoice::STATUSES)],
         ]);
 
-        $from = $invoice->status;
         $to = $validated['status'];
 
-        $legal = ($from === 'draft' && $to === 'issued')
-            || ($from === 'draft' && $to === 'void')
-            || ($from === 'issued' && $to === 'void');
-
-        if (! $legal) {
-            throw ValidationException::withMessages([
-                'status' => "An invoice cannot move from {$from} to {$to}.",
-            ]);
-        }
-
-        if ($to === 'issued' && $invoice->items()->count() < 1) {
-            throw ValidationException::withMessages([
-                'status' => 'Add at least one line item before issuing this invoice.',
-            ]);
-        }
-
-        DB::transaction(function () use ($invoice, $from, $to) {
+        // Every part of the decision is made against `$locked`, inside the
+        // transaction — the legality of the move, the "a draft needs line
+        // items" rule, and the payment check. Deciding from the route-bound
+        // instance instead let a concurrent {void} + {issued} pair both pass
+        // their checks and resurrect a voided invoice.
+        DB::transaction(function () use ($invoice, $to) {
             $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+            $from = $locked->status;
+
+            $legal = ($from === 'draft' && $to === 'issued')
+                || ($from === 'draft' && $to === 'void')
+                || ($from === 'issued' && $to === 'void');
+
+            if (! $legal) {
+                throw ValidationException::withMessages([
+                    'status' => "An invoice cannot move from {$from} to {$to}.",
+                ]);
+            }
+
+            if ($to === 'issued' && $locked->items()->count() < 1) {
+                throw ValidationException::withMessages([
+                    'status' => 'Add at least one line item before issuing this invoice.',
+                ]);
+            }
 
             if ($from === 'issued' && $to === 'void' && $locked->payments()->count() > 0) {
                 throw ValidationException::withMessages([
