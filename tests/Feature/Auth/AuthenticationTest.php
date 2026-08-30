@@ -51,4 +51,25 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
         $response->assertRedirect('/');
     }
+
+    public function test_a_single_ip_is_capped_at_twenty_failed_attempts_across_distinct_emails(): void
+    {
+        for ($i = 0; $i < 20; $i++) {
+            $this->post('/login', [
+                'email' => "attempt{$i}@example.com",
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $response = $this->post('/login', [
+            'email' => 'attempt20@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertStringContainsString(
+            'Too many login attempts',
+            session('errors')->first('email')
+        );
+    }
 }
