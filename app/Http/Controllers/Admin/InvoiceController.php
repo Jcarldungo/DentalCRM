@@ -87,7 +87,7 @@ class InvoiceController extends Controller
             $this->syncItems($invoice, $validated['items']);
         });
 
-        return back();
+        return back()->with('success', 'Invoice saved.');
     }
 
     /**

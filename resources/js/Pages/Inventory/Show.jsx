@@ -1,21 +1,20 @@
-import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
+import Button from '@/Components/UI/Button';
+import Card, { CardBody, CardHeader } from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
+import { DetailItem, PageContainer } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { movementType, stockStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Archive, ArchiveRestore, Pencil, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { formatDate, formatPeso } from '@/Pages/Patients/format';
-import { CATEGORIES, UNITS, STATUS_BADGE, categoryLabel, Field, Dialog } from './shared';
+import { CATEGORIES, UNITS, categoryLabel } from './shared';
 
 const MOVEMENT_TYPES = ['received', 'consumed', 'adjustment', 'expired'];
 
-const TYPE_BADGE = {
-    received: 'bg-green-100 text-green-800',
-    consumed: 'bg-gray-100 text-gray-700',
-    adjustment: 'bg-blue-100 text-blue-800',
-    expired: 'bg-red-100 text-red-800',
-};
-
-function signedQty(qty) {
-    return qty > 0 ? `+${qty}` : `${qty}`;
-}
+const signedQty = (quantity) => (quantity > 0 ? `+${quantity}` : `${quantity}`);
 
 export default function Show({ item }) {
     const [showEdit, setShowEdit] = useState(false);
@@ -32,14 +31,6 @@ export default function Show({ item }) {
         notes: item.notes ?? '',
     });
 
-    function submitEdit(e) {
-        e.preventDefault();
-        editForm.patch(route('inventory.update', item.id), {
-            preserveScroll: true,
-            onSuccess: () => setShowEdit(false),
-        });
-    }
-
     const movementForm = useForm({
         type: 'received',
         quantity: '',
@@ -48,17 +39,6 @@ export default function Show({ item }) {
         occurred_on: '',
         reason: '',
     });
-
-    function submitMovement(e) {
-        e.preventDefault();
-        movementForm.post(route('inventory-movements.store', item.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                movementForm.reset();
-                setShowMovement(false);
-            },
-        });
-    }
 
     function setActive(active) {
         router.patch(
@@ -72,365 +52,373 @@ export default function Show({ item }) {
     const isReceived = movementForm.data.type === 'received';
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">{item.name}</h2>}>
+        <AuthenticatedLayout title={item.name}>
             <Head title={item.name} />
 
-            <div className="py-8 max-w-3xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            <PageContainer className="max-w-4xl">
                 {!item.active && (
-                    <div className="rounded border border-gray-300 bg-gray-100 p-3 text-sm text-gray-600">
-                        This item is archived.
+                    <div
+                        role="status"
+                        className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
+                    >
+                        <span>
+                            This item is archived. It is hidden from the default list and dashboard alerts, and
+                            stock can only be run down, not added.
+                        </span>
+                        <Button variant="secondary" size="sm" icon={ArchiveRestore} onClick={() => setActive(true)}>
+                            Restore
+                        </Button>
                     </div>
                 )}
 
-                <div className="rounded border bg-white p-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <p className="text-3xl font-semibold">
-                                {item.on_hand} <span className="text-lg text-gray-500">{item.unit}</span>
+                <Card className="mb-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
+                        <div className="min-w-0">
+                            <h1 className="text-xl font-semibold tracking-tight text-slate-900">{item.name}</h1>
+                            <p className="mt-0.5 text-sm capitalize text-slate-500">
+                                {categoryLabel(item.category)} · reorder at {item.reorder_threshold} {item.unit}
                             </p>
-                            <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <span
-                                    className={`inline-block rounded border px-2 py-0.5 text-xs uppercase ${STATUS_BADGE[item.stock_status]}`}
-                                >
-                                    {item.stock_status}
-                                </span>
-                                <span className="text-sm capitalize text-gray-500">
-                                    {categoryLabel(item.category)} · reorder at {item.reorder_threshold}
-                                </span>
-                            </div>
-                            {item.is_expiring_soon && item.expiry_date && (
-                                <p className="mt-1 text-sm text-amber-700">Expiring {formatDate(item.expiry_date)}</p>
-                            )}
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowMovement(true)}
-                            className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white"
-                        >
-                            Record movement
-                        </button>
-                    </div>
-                </div>
 
-                <div className="rounded border bg-white p-4 text-sm shadow-sm">
-                    <div className="mb-2 flex items-center justify-between">
-                        <h3 className="font-semibold">Details</h3>
-                        <button type="button" onClick={() => setShowEdit(true)} className="text-blue-600">
-                            Edit details
-                        </button>
+                        <div className="text-end">
+                            <p className="tabular text-3xl font-semibold text-slate-900">
+                                {item.on_hand} <span className="text-base font-normal text-slate-500">{item.unit}</span>
+                            </p>
+                            <div className="mt-1 flex flex-wrap justify-end gap-1.5">
+                                <StatusBadge status={stockStatus(item.stock_status)} />
+                                {item.is_expiring_soon && item.expiry_date && (
+                                    <StatusBadge
+                                        status={{ label: `Expires ${formatDate(item.expiry_date)}`, tone: 'warning' }}
+                                    />
+                                )}
+                            </div>
+                        </div>
                     </div>
-                    <dl className="grid grid-cols-2 gap-2">
-                        <div>
-                            <dt className="text-gray-500">Supplier</dt>
-                            <dd>{item.supplier ?? '—'}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-gray-500">Expiry date</dt>
-                            <dd>{item.expiry_date ? formatDate(item.expiry_date) : '—'}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-gray-500">Reorder threshold</dt>
-                            <dd>{item.reorder_threshold}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-gray-500">Created</dt>
-                            <dd>
-                                {formatDate(item.created_at)} by {item.creator_name}
-                            </dd>
-                        </div>
-                    </dl>
-                    {item.notes && <p className="mt-3 text-gray-600">Notes: {item.notes}</p>}
-                    <div className="mt-3 border-t pt-3">
-                        {item.active ? (
-                            <button type="button" onClick={() => setShowArchive(true)} className="text-sm text-red-700">
-                                Archive item
-                            </button>
-                        ) : (
-                            <button type="button" onClick={() => setActive(true)} className="text-sm text-blue-600">
-                                Restore item
-                            </button>
+
+                    <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                        <Button icon={Plus} onClick={() => { movementForm.clearErrors(); setShowMovement(true); }}>
+                            Record movement
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            icon={Pencil}
+                            onClick={() => { editForm.clearErrors(); setShowEdit(true); }}
+                        >
+                            Edit details
+                        </Button>
+                        {item.active && (
+                            <Button variant="danger" icon={Archive} className="ms-auto" onClick={() => setShowArchive(true)}>
+                                Archive
+                            </Button>
                         )}
                     </div>
-                </div>
+                </Card>
 
-                <div className="rounded border bg-white p-4 text-sm shadow-sm">
-                    <h3 className="mb-2 font-semibold">Movement history</h3>
-                    {item.movements.length === 0 ? (
-                        <p className="text-gray-500">No movements recorded.</p>
-                    ) : (
-                        <table className="w-full">
-                            <thead className="text-left text-gray-500">
-                                <tr>
-                                    <th className="py-1">Date</th>
-                                    <th className="py-1">Type</th>
-                                    <th className="py-1 text-right">Qty</th>
-                                    <th className="py-1 text-right">Unit cost</th>
-                                    <th className="py-1">Reason</th>
-                                    <th className="py-1">By</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {item.movements.map((movement) => (
-                                    <tr key={movement.id} className="border-b last:border-0">
-                                        <td className="py-2">{formatDate(movement.occurred_on)}</td>
-                                        <td className="py-2">
-                                            <span
-                                                className={`inline-block rounded px-2 py-0.5 text-xs capitalize ${TYPE_BADGE[movement.type]}`}
-                                            >
-                                                {movement.type}
-                                            </span>
-                                        </td>
-                                        <td
-                                            className={`py-2 text-right ${movement.quantity < 0 ? 'text-red-700' : 'text-green-700'}`}
-                                        >
-                                            {signedQty(movement.quantity)}
-                                        </td>
-                                        <td className="py-2 text-right text-gray-500">
-                                            {movement.unit_cost !== null ? formatPeso(movement.unit_cost) : '—'}
-                                        </td>
-                                        <td className="py-2 text-gray-500">{movement.reason ?? '—'}</td>
-                                        <td className="py-2 text-gray-500">{movement.creator_name}</td>
-                                    </tr>
+                <div className="space-y-5">
+                    <Card>
+                        <CardHeader title="Details" />
+                        <CardBody>
+                            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                                <DetailItem label="Supplier">{item.supplier}</DetailItem>
+                                <DetailItem label="Expiry date">
+                                    {item.expiry_date ? formatDate(item.expiry_date) : null}
+                                </DetailItem>
+                                <DetailItem label="Reorder threshold">
+                                    <span className="tabular">
+                                        {item.reorder_threshold} {item.unit}
+                                    </span>
+                                </DetailItem>
+                                <DetailItem label="Created">
+                                    {formatDate(item.created_at)} by {item.creator_name}
+                                </DetailItem>
+                            </dl>
+                            {item.notes && (
+                                <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700">
+                                    {item.notes}
+                                </p>
+                            )}
+                        </CardBody>
+                    </Card>
+
+                    <Card className="overflow-hidden">
+                        <CardHeader
+                            title="Movement history"
+                            description="Append-only. On-hand is the signed sum of this ledger — it is never stored."
+                        />
+                        {item.movements.length === 0 ? (
+                            <CardBody className="text-sm text-slate-500">No movements recorded.</CardBody>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[40rem] text-sm">
+                                    <caption className="sr-only">Stock movements for {item.name}</caption>
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
+                                                Date
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600">
+                                                Type
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 text-right font-medium text-slate-600">
+                                                Qty
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 text-right font-medium text-slate-600">
+                                                Unit cost
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600">
+                                                Reason
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
+                                                By
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {item.movements.map((movement) => (
+                                            <tr key={movement.id}>
+                                                <td className="tabular px-4 py-2.5 text-slate-700 sm:px-5">
+                                                    {formatDate(movement.occurred_on)}
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <StatusBadge status={movementType(movement.type)} />
+                                                </td>
+                                                <td
+                                                    className={`tabular px-4 py-2.5 text-right font-medium ${
+                                                        movement.quantity < 0 ? 'text-rose-700' : 'text-emerald-700'
+                                                    }`}
+                                                >
+                                                    {signedQty(movement.quantity)}
+                                                </td>
+                                                <td className="tabular px-4 py-2.5 text-right text-slate-500">
+                                                    {movement.unit_cost !== null ? formatPeso(movement.unit_cost) : '—'}
+                                                </td>
+                                                <td className="px-4 py-2.5 text-slate-500">{movement.reason ?? '—'}</td>
+                                                <td className="px-4 py-2.5 text-slate-500 sm:px-5">
+                                                    {movement.creator_name}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+            </PageContainer>
+
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    editForm.patch(route('inventory.update', item.id), {
+                        preserveScroll: true,
+                        onSuccess: () => setShowEdit(false),
+                    });
+                }}
+                show={showEdit}
+                onClose={() => setShowEdit(false)}
+                closeable={!editForm.processing}
+                title="Edit item details"
+                width="2xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowEdit(false)} disabled={editForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={editForm.processing}>
+                            {editForm.processing ? 'Saving…' : 'Save changes'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <Field
+                        label="Name"
+                        required
+                        value={editForm.data.name}
+                        onChange={(e) => editForm.setData('name', e.target.value)}
+                        error={editForm.errors.name}
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <SelectField
+                            label="Category"
+                            value={editForm.data.category}
+                            onChange={(e) => editForm.setData('category', e.target.value)}
+                            error={editForm.errors.category}
+                        >
+                            {CATEGORIES.map((category) => (
+                                <option key={category} value={category}>
+                                    {categoryLabel(category)}
+                                </option>
+                            ))}
+                        </SelectField>
+                        <div>
+                            <Field
+                                label="Unit"
+                                required
+                                list="inventory-units-edit"
+                                value={editForm.data.unit}
+                                onChange={(e) => editForm.setData('unit', e.target.value)}
+                                error={editForm.errors.unit}
+                            />
+                            <datalist id="inventory-units-edit">
+                                {UNITS.map((unit) => (
+                                    <option key={unit} value={unit} />
                                 ))}
-                            </tbody>
-                        </table>
-                    )}
+                            </datalist>
+                        </div>
+                        <Field
+                            label="Reorder threshold"
+                            required
+                            type="number"
+                            min="0"
+                            inputClassName="tabular"
+                            value={editForm.data.reorder_threshold}
+                            onChange={(e) => editForm.setData('reorder_threshold', e.target.value)}
+                            error={editForm.errors.reorder_threshold}
+                        />
+                        <Field
+                            label="Expiry date"
+                            type="date"
+                            value={editForm.data.expiry_date}
+                            onChange={(e) => editForm.setData('expiry_date', e.target.value)}
+                            error={editForm.errors.expiry_date}
+                        />
+                        <Field
+                            label="Supplier"
+                            className="sm:col-span-2"
+                            value={editForm.data.supplier}
+                            onChange={(e) => editForm.setData('supplier', e.target.value)}
+                            error={editForm.errors.supplier}
+                        />
+                    </div>
+                    <TextareaField
+                        label="Notes"
+                        rows={2}
+                        value={editForm.data.notes}
+                        onChange={(e) => editForm.setData('notes', e.target.value)}
+                        error={editForm.errors.notes}
+                    />
                 </div>
-            </div>
+            </Modal>
 
-            {showEdit && (
-                <Dialog
-                    onClose={() => {
-                        editForm.clearErrors();
-                        setShowEdit(false);
-                    }}
-                >
-                    <form onSubmit={submitEdit} className="space-y-4">
-                        <h3 className="font-semibold">Edit details</h3>
-                        <Field label="Name" error={editForm.errors.name}>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.name}
-                                onChange={(e) => editForm.setData('name', e.target.value)}
-                            />
-                        </Field>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Category" error={editForm.errors.category}>
-                                <select
-                                    className="w-full rounded border px-3 py-2"
-                                    value={editForm.data.category}
-                                    onChange={(e) => editForm.setData('category', e.target.value)}
-                                >
-                                    {CATEGORIES.map((c) => (
-                                        <option key={c} value={c}>
-                                            {categoryLabel(c)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </Field>
-                            <Field label="Unit" error={editForm.errors.unit}>
-                                <input
-                                    type="text"
-                                    list="inventory-units"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={editForm.data.unit}
-                                    onChange={(e) => editForm.setData('unit', e.target.value)}
-                                />
-                                <datalist id="inventory-units">
-                                    {UNITS.map((u) => (
-                                        <option key={u} value={u} />
-                                    ))}
-                                </datalist>
-                            </Field>
-                        </div>
-                        <Field label="Reorder threshold" error={editForm.errors.reorder_threshold}>
-                            <input
-                                type="number"
-                                min="0"
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.reorder_threshold}
-                                onChange={(e) => editForm.setData('reorder_threshold', e.target.value)}
-                            />
-                        </Field>
-                        <Field label="Supplier" error={editForm.errors.supplier}>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.supplier}
-                                onChange={(e) => editForm.setData('supplier', e.target.value)}
-                            />
-                        </Field>
-                        <Field label="Expiry date" error={editForm.errors.expiry_date}>
-                            <input
-                                type="date"
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.expiry_date}
-                                onChange={(e) => editForm.setData('expiry_date', e.target.value)}
-                            />
-                        </Field>
-                        <Field label="Notes" error={editForm.errors.notes}>
-                            <textarea
-                                rows={2}
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.notes}
-                                onChange={(e) => editForm.setData('notes', e.target.value)}
-                            />
-                        </Field>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    editForm.clearErrors();
-                                    setShowEdit(false);
-                                }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={editForm.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </form>
-                </Dialog>
-            )}
-
-            {showMovement && (
-                <Dialog
-                    onClose={() => {
-                        movementForm.clearErrors();
-                        setShowMovement(false);
-                    }}
-                >
-                    <form onSubmit={submitMovement} className="space-y-4">
-                        <h3 className="font-semibold">Record movement</h3>
-                        <p className="text-sm text-gray-500">
-                            On hand: {item.on_hand} {item.unit}
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Type" error={movementForm.errors.type}>
-                                <select
-                                    className="w-full rounded border px-3 py-2 capitalize"
-                                    value={movementForm.data.type}
-                                    onChange={(e) => movementForm.setData('type', e.target.value)}
-                                >
-                                    {MOVEMENT_TYPES.map((t) => (
-                                        <option key={t} value={t}>
-                                            {t}
-                                        </option>
-                                    ))}
-                                </select>
-                            </Field>
-                            <Field label="Quantity" error={movementForm.errors.quantity}>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={movementForm.data.quantity}
-                                    onChange={(e) => movementForm.setData('quantity', e.target.value)}
-                                />
-                            </Field>
-                        </div>
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    movementForm.post(route('inventory-movements.store', item.id), {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            movementForm.reset();
+                            setShowMovement(false);
+                        },
+                    });
+                }}
+                show={showMovement}
+                onClose={() => setShowMovement(false)}
+                closeable={!movementForm.processing}
+                title="Record a stock movement"
+                description={`${item.on_hand} ${item.unit} on hand. Movements are append-only and cannot drive stock below zero.`}
+                width="lg"
+                footer={
+                    <>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowMovement(false)}
+                            disabled={movementForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={movementForm.processing}>
+                            {movementForm.processing ? 'Recording…' : 'Record movement'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <SelectField
+                            label="Type"
+                            value={movementForm.data.type}
+                            onChange={(e) => movementForm.setData('type', e.target.value)}
+                            error={movementForm.errors.type}
+                        >
+                            {MOVEMENT_TYPES.map((type) => (
+                                <option key={type} value={type}>
+                                    {movementType(type).label}
+                                </option>
+                            ))}
+                        </SelectField>
+                        <Field
+                            label="Quantity"
+                            required
+                            type="number"
+                            min="1"
+                            inputClassName="tabular"
+                            value={movementForm.data.quantity}
+                            onChange={(e) => movementForm.setData('quantity', e.target.value)}
+                            error={movementForm.errors.quantity}
+                            hint={`Whole ${item.unit} only.`}
+                        />
 
                         {isAdjustment && (
-                            <Field label="Direction" error={movementForm.errors.direction}>
-                                <select
-                                    className="w-full rounded border px-3 py-2"
-                                    value={movementForm.data.direction}
-                                    onChange={(e) => movementForm.setData('direction', e.target.value)}
-                                >
-                                    <option value="increase">Increase</option>
-                                    <option value="decrease">Decrease</option>
-                                </select>
-                            </Field>
+                            <SelectField
+                                label="Direction"
+                                value={movementForm.data.direction}
+                                onChange={(e) => movementForm.setData('direction', e.target.value)}
+                                error={movementForm.errors.direction}
+                            >
+                                <option value="increase">Increase</option>
+                                <option value="decrease">Decrease</option>
+                            </SelectField>
                         )}
 
                         {isReceived && (
-                            <Field label="Unit cost (₱, optional)" error={movementForm.errors.unit_cost}>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={movementForm.data.unit_cost}
-                                    onChange={(e) => movementForm.setData('unit_cost', e.target.value)}
-                                />
-                            </Field>
+                            <Field
+                                label="Unit cost (₱)"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                inputClassName="tabular"
+                                value={movementForm.data.unit_cost}
+                                onChange={(e) => movementForm.setData('unit_cost', e.target.value)}
+                                error={movementForm.errors.unit_cost}
+                            />
                         )}
 
-                        <Field label="Date" error={movementForm.errors.occurred_on}>
-                            <input
-                                type="date"
-                                className="w-full rounded border px-3 py-2"
-                                value={movementForm.data.occurred_on}
-                                onChange={(e) => movementForm.setData('occurred_on', e.target.value)}
-                            />
-                        </Field>
-
                         <Field
-                            label={isAdjustment ? 'Reason (required for adjustments)' : 'Reason (optional)'}
-                            error={movementForm.errors.reason}
-                        >
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={movementForm.data.reason}
-                                onChange={(e) => movementForm.setData('reason', e.target.value)}
-                            />
-                        </Field>
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    movementForm.clearErrors();
-                                    setShowMovement(false);
-                                }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={movementForm.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Record
-                            </button>
-                        </div>
-                    </form>
-                </Dialog>
-            )}
-
-            {showArchive && (
-                <Dialog onClose={() => setShowArchive(false)}>
-                    <div className="space-y-4">
-                        <h3 className="font-semibold">Archive this item?</h3>
-                        <p className="text-sm text-gray-600">
-                            It drops out of the active list and the dashboard alerts. Its history is kept and you can
-                            restore it later.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowArchive(false)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActive(false)}
-                                className="rounded border border-red-300 px-4 py-2 text-sm text-red-700"
-                            >
-                                Archive
-                            </button>
-                        </div>
+                            label="Date"
+                            type="date"
+                            value={movementForm.data.occurred_on}
+                            onChange={(e) => movementForm.setData('occurred_on', e.target.value)}
+                            error={movementForm.errors.occurred_on}
+                            hint="Defaults to today. Cannot be in the future."
+                        />
                     </div>
-                </Dialog>
-            )}
+
+                    <Field
+                        label="Reason"
+                        required={isAdjustment}
+                        value={movementForm.data.reason}
+                        onChange={(e) => movementForm.setData('reason', e.target.value)}
+                        error={movementForm.errors.reason}
+                        hint={
+                            isAdjustment
+                                ? 'Required — an adjustment with no reason is unauditable.'
+                                : 'Optional.'
+                        }
+                    />
+                </div>
+            </Modal>
+
+            <ConfirmDialog
+                show={showArchive}
+                onClose={() => setShowArchive(false)}
+                onConfirm={() => setActive(false)}
+                title={`Archive ${item.name}?`}
+                confirmLabel="Archive item"
+                body="It drops out of the active list and the dashboard alerts, and no more stock can be added to it. Its ledger is kept, remaining stock can still be consumed or written off, and it can be restored at any time."
+            />
         </AuthenticatedLayout>
     );
 }

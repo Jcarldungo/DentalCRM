@@ -23,7 +23,10 @@ export default function Register() {
     };
 
     return (
-        <GuestLayout>
+        <GuestLayout
+            title="Create a staff account"
+            description="Every account has the same access. You will need to verify your email before reaching any clinic data."
+        >
             <Head title="Register" />
 
             <form onSubmit={submit}>
@@ -120,7 +123,7 @@ export default function Register() {
                         required
                     />
 
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-xs text-slate-500">
                         Ask the practice manager for this.
                     </p>
 
@@ -130,16 +133,16 @@ export default function Register() {
                     />
                 </div>
 
-                <div className="mt-4 flex items-center justify-end">
+                <div className="mt-6 flex items-center justify-between gap-4">
                     <Link
                         href={route('login')}
-                        className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        className="rounded-md text-sm font-medium text-brand-700 hover:text-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                     >
-                        Already registered?
+                        Already have an account?
                     </Link>
 
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Register
+                    <PrimaryButton disabled={processing}>
+                        {processing ? 'Creating…' : 'Create account'}
                     </PrimaryButton>
                 </div>
             </form>

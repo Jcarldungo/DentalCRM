@@ -1,19 +1,25 @@
-import { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import Button from '@/Components/UI/Button';
+import Card, { CardBody, CardHeader } from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
+import { PageContainer } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { invoiceDisplayStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { Ban, CheckCircle2, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { formatDate, formatDateTime, formatPeso } from '@/Pages/Patients/format';
 
 const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'check', 'other'];
-
 const BLANK_LINE = { description: '', amount: '', treatment_plan_item_id: '' };
 
-function methodLabel(method) {
-    return method.replace('_', ' ');
-}
+const methodLabel = (method) => method.replace('_', ' ');
 
 export default function Show({ invoice, treatmentPlanItems }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
+    const [confirming, setConfirming] = useState(null);
 
     const isDraft = invoice.status === 'draft';
     const isIssued = invoice.status === 'issued';
@@ -23,7 +29,10 @@ export default function Show({ invoice, treatmentPlanItems }) {
 
     function move(status) {
         transition.transform(() => ({ status }));
-        transition.patch(route('invoices.update', invoice.id), { preserveScroll: true });
+        transition.patch(route('invoices.update', invoice.id), {
+            preserveScroll: true,
+            onFinish: () => setConfirming(null),
+        });
     }
 
     const editForm = useForm({
@@ -45,24 +54,18 @@ export default function Show({ invoice, treatmentPlanItems }) {
         );
     }
 
-    function linkTreatment(index, tpiId) {
-        if (!tpiId) {
+    function linkTreatment(index, id) {
+        if (!id) {
             setLine(index, { treatment_plan_item_id: '' });
             return;
         }
-        const tpi = treatmentPlanItems.find((t) => String(t.id) === String(tpiId));
-        setLine(index, {
-            treatment_plan_item_id: tpiId,
-            description: tpi ? tpi.treatment : editForm.data.items[index].description,
-            amount: tpi ? tpi.estimated_cost : editForm.data.items[index].amount,
-        });
-    }
 
-    function submitEdit(e) {
-        e.preventDefault();
-        editForm.patch(route('invoices.update', invoice.id), {
-            preserveScroll: true,
-            onSuccess: () => setShowEdit(false),
+        const item = treatmentPlanItems.find((candidate) => String(candidate.id) === String(id));
+
+        setLine(index, {
+            treatment_plan_item_id: id,
+            description: item ? item.treatment : editForm.data.items[index].description,
+            amount: item ? item.estimated_cost : editForm.data.items[index].amount,
         });
     }
 
@@ -74,355 +77,513 @@ export default function Show({ invoice, treatmentPlanItems }) {
         note: '',
     });
 
-    function submitPayment(e) {
-        e.preventDefault();
-        paymentForm.post(route('invoice-payments.store', invoice.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                paymentForm.reset();
-                setShowPayment(false);
-            },
-        });
-    }
-
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">{invoice.number}</h2>}>
+        <AuthenticatedLayout title={invoice.number}>
             <Head title={invoice.number} />
 
-            <div className="py-8 max-w-3xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                <div className="rounded border bg-white p-4 text-sm shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Link href={route('patients.show', invoice.patient.id)} className="font-medium text-blue-600">
-                            {invoice.patient.full_name}
-                        </Link>
-                        <span className="text-gray-500">
-                            {invoice.is_paid ? 'paid' : invoice.status}
-                        </span>
+            <PageContainer className="max-w-4xl">
+                {/* The invoice's own header: number, who it is for, and the
+                    one number that matters — the balance. */}
+                <Card className="mb-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="tabular text-xl font-semibold tracking-tight text-slate-900">
+                                    {invoice.number}
+                                </h1>
+                                <StatusBadge status={invoiceDisplayStatus(invoice)} />
+                            </div>
+                            <Link
+                                href={route('patients.show', invoice.patient.id)}
+                                className="mt-1 inline-block text-sm font-medium text-brand-700 hover:text-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                            >
+                                {invoice.patient.full_name}
+                            </Link>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                                Created {formatDate(invoice.created_at)} by {invoice.creator_name}
+                                {invoice.issued_at && ` · issued ${formatDateTime(invoice.issued_at)}`}
+                                {invoice.voided_at && ` · voided ${formatDateTime(invoice.voided_at)}`}
+                            </p>
+                        </div>
+
+                        <div className="text-end">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                                {isVoid ? 'Voided total' : 'Balance due'}
+                            </p>
+                            <p
+                                className={`tabular text-3xl font-semibold ${
+                                    isVoid
+                                        ? 'text-slate-400 line-through'
+                                        : invoice.balance > 0
+                                          ? 'text-amber-700'
+                                          : 'text-emerald-700'
+                                }`}
+                            >
+                                {formatPeso(isVoid ? invoice.total : invoice.balance)}
+                            </p>
+                            {!isVoid && invoice.amount_paid > 0 && (
+                                <p className="tabular mt-0.5 text-xs text-slate-500">
+                                    {formatPeso(invoice.amount_paid)} of {formatPeso(invoice.total)} paid
+                                </p>
+                            )}
+                        </div>
                     </div>
-                    <div className="mt-1 text-gray-500">
-                        Created {formatDate(invoice.created_at)} by {invoice.creator_name}
-                        {invoice.issued_at && ` · issued ${formatDateTime(invoice.issued_at)}`}
-                        {invoice.voided_at && ` · voided ${formatDateTime(invoice.voided_at)}`}
-                    </div>
-                </div>
+
+                    {(isDraft || (isIssued && invoice.payments.length === 0) || (isIssued && invoice.balance > 0)) && (
+                        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+                            {isDraft && (
+                                <>
+                                    <Button icon={Send} onClick={() => setConfirming('issue')} disabled={transition.processing}>
+                                        Issue invoice
+                                    </Button>
+                                    <Button variant="secondary" icon={Pencil} onClick={() => setShowEdit(true)}>
+                                        Edit lines
+                                    </Button>
+                                </>
+                            )}
+                            {isIssued && invoice.balance > 0 && (
+                                <Button icon={Plus} onClick={() => setShowPayment(true)}>
+                                    Record payment
+                                </Button>
+                            )}
+                            {(isDraft || (isIssued && invoice.payments.length === 0)) && (
+                                <Button
+                                    variant="danger"
+                                    icon={Ban}
+                                    className="ms-auto"
+                                    onClick={() => setConfirming('void')}
+                                    disabled={transition.processing}
+                                >
+                                    Void
+                                </Button>
+                            )}
+                        </div>
+                    )}
+
+                    {transition.errors.status && (
+                        <p
+                            role="alert"
+                            className="border-t border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700 sm:px-5"
+                        >
+                            {transition.errors.status}
+                        </p>
+                    )}
+                </Card>
 
                 {isVoid && (
-                    <div className="rounded border border-gray-300 bg-gray-100 p-3 text-sm text-gray-600">
-                        This invoice has been voided.
+                    <div
+                        role="status"
+                        className="mb-5 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
+                    >
+                        This invoice has been voided. It stays on the record but is excluded from balances
+                        and reports.
                     </div>
                 )}
                 {invoice.is_paid && (
-                    <div className="rounded border border-green-300 bg-green-50 p-3 text-sm text-green-800">
+                    <div
+                        role="status"
+                        className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+                    >
+                        <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                         Paid in full.
                     </div>
                 )}
 
-                <div className="rounded border bg-white p-4 text-sm shadow-sm">
-                    <div className="mb-2 flex items-center justify-between">
-                        <h3 className="font-semibold">Line items</h3>
-                        {isDraft && (
-                            <button type="button" onClick={() => setShowEdit(true)} className="text-sm text-blue-600">
-                                Edit
-                            </button>
-                        )}
-                    </div>
-                    <table className="w-full">
-                        <tbody>
-                            {invoice.items.map((item) => (
-                                <tr key={item.id} className="border-b last:border-0">
-                                    <td className="py-2">
-                                        {item.description}
-                                        {item.treatment_plan_item_label && (
-                                            <span className="text-gray-400"> · {item.treatment_plan_item_label}</span>
-                                        )}
-                                        {item.provider_name && (
-                                            <span className="text-gray-400"> · {item.provider_name}</span>
-                                        )}
-                                    </td>
-                                    <td className="py-2 text-right">{formatPeso(item.amount)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <div className="mt-3 space-y-1 border-t pt-3 text-right">
-                        <div>Subtotal: {formatPeso(invoice.subtotal)}</div>
-                        {invoice.discount_amount > 0 && <div>Discount: −{formatPeso(invoice.discount_amount)}</div>}
-                        <div className="font-semibold">Total: {formatPeso(invoice.total)}</div>
-                    </div>
-                    {invoice.notes && <p className="mt-3 text-gray-600">Notes: {invoice.notes}</p>}
-                </div>
-
-                <div className="rounded border bg-white p-4 text-sm shadow-sm">
-                    <div className="mb-2 flex items-center justify-between">
-                        <h3 className="font-semibold">Payments</h3>
-                        {isIssued && invoice.balance > 0 && (
-                            <button type="button" onClick={() => setShowPayment(true)} className="text-sm text-blue-600">
-                                Record payment
-                            </button>
-                        )}
-                    </div>
-                    {invoice.payments.length === 0 ? (
-                        <p className="text-gray-500">No payments recorded.</p>
-                    ) : (
-                        <table className="w-full">
-                            <tbody>
-                                {invoice.payments.map((payment) => (
-                                    <tr key={payment.id} className="border-b last:border-0">
-                                        <td className="py-2">{formatDate(payment.paid_on)}</td>
-                                        <td className="py-2 capitalize">{methodLabel(payment.method)}</td>
-                                        <td className="py-2 text-gray-400">{payment.reference}</td>
-                                        <td className="py-2 text-right">{formatPeso(payment.amount)}</td>
+                <div className="space-y-5">
+                    <Card className="overflow-hidden">
+                        <CardHeader
+                            title="Line items"
+                            description={isDraft ? 'Editable until the invoice is issued.' : 'Frozen at issue.'}
+                        />
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[30rem] text-sm">
+                                <caption className="sr-only">Invoice line items</caption>
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                        <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
+                                            Description
+                                        </th>
+                                        <th
+                                            scope="col"
+                                            className="px-4 py-2 text-right font-medium text-slate-600 sm:px-5"
+                                        >
+                                            Amount
+                                        </th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                    <div className="mt-3 space-y-1 border-t pt-3 text-right">
-                        <div>Paid: {formatPeso(invoice.amount_paid)}</div>
-                        <div className="font-semibold">Balance due: {formatPeso(invoice.balance)}</div>
-                    </div>
-                </div>
-
-                {(isDraft || (isIssued && invoice.payments.length === 0)) && (
-                    <div className="flex flex-wrap gap-2">
-                        {isDraft && (
-                            <button
-                                type="button"
-                                onClick={() => move('issued')}
-                                disabled={transition.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Issue invoice
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => move('void')}
-                            disabled={transition.processing}
-                            className="rounded border border-red-300 px-4 py-2 text-sm text-red-700"
-                        >
-                            Void
-                        </button>
-                        {transition.errors.status && (
-                            <p className="w-full text-sm text-red-600">{transition.errors.status}</p>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {showEdit && (
-                <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-                    <form onSubmit={submitEdit} className="my-8 w-full max-w-2xl space-y-4 rounded bg-white p-6">
-                        <h3 className="font-semibold">Edit invoice</h3>
-
-                        <div className="space-y-3">
-                            {editForm.data.items.map((line, index) => (
-                                <div key={index} className="rounded border p-3">
-                                    <div className="mb-2">
-                                        <label className="mb-1 block text-sm">Link to treatment (optional)</label>
-                                        <select
-                                            className="w-full rounded border px-3 py-2"
-                                            value={line.treatment_plan_item_id}
-                                            onChange={(e) => linkTreatment(index, e.target.value)}
-                                        >
-                                            <option value="">Not linked</option>
-                                            {treatmentPlanItems.map((tpi) => (
-                                                <option key={tpi.id} value={tpi.id}>{tpi.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2">
-                                            <label className="mb-1 block text-sm">Description</label>
-                                            <input
-                                                type="text"
-                                                className="w-full rounded border px-3 py-2"
-                                                value={line.description}
-                                                onChange={(e) => setLine(index, { description: e.target.value })}
-                                            />
-                                            {editForm.errors[`items.${index}.description`] && (
-                                                <p className="text-sm text-red-600">
-                                                    {editForm.errors[`items.${index}.description`]}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="mb-1 block text-sm">Amount (₱)</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="99999999.99"
-                                                step="0.01"
-                                                className="w-full rounded border px-3 py-2"
-                                                value={line.amount}
-                                                onChange={(e) => setLine(index, { amount: e.target.value })}
-                                            />
-                                            {editForm.errors[`items.${index}.amount`] && (
-                                                <p className="text-sm text-red-600">
-                                                    {editForm.errors[`items.${index}.amount`]}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {editForm.data.items.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                editForm.setData(
-                                                    'items',
-                                                    editForm.data.items.filter((_, i) => i !== index),
-                                                )
-                                            }
-                                            className="mt-2 text-sm text-red-600"
-                                        >
-                                            Remove line
-                                        </button>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {invoice.items.map((item) => (
+                                        <tr key={item.id}>
+                                            <td className="px-4 py-2.5 sm:px-5">
+                                                <span className="text-slate-800">{item.description}</span>
+                                                {(item.treatment_plan_item_label || item.provider_name) && (
+                                                    <span className="block text-xs text-slate-400">
+                                                        {[item.treatment_plan_item_label, item.provider_name]
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="tabular px-4 py-2.5 text-right text-slate-800 sm:px-5">
+                                                {formatPeso(item.amount)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="border-t border-slate-200 bg-slate-50">
+                                    <tr>
+                                        <th scope="row" className="px-4 py-1.5 text-right font-normal text-slate-500 sm:px-5">
+                                            Subtotal
+                                        </th>
+                                        <td className="tabular px-4 py-1.5 text-right text-slate-700 sm:px-5">
+                                            {formatPeso(invoice.subtotal)}
+                                        </td>
+                                    </tr>
+                                    {invoice.discount_amount > 0 && (
+                                        <tr>
+                                            <th
+                                                scope="row"
+                                                className="px-4 py-1.5 text-right font-normal text-slate-500 sm:px-5"
+                                            >
+                                                Discount
+                                            </th>
+                                            <td className="tabular px-4 py-1.5 text-right text-slate-700 sm:px-5">
+                                                −{formatPeso(invoice.discount_amount)}
+                                            </td>
+                                        </tr>
                                     )}
-                                </div>
-                            ))}
-                            {editForm.errors.items && <p className="text-sm text-red-600">{editForm.errors.items}</p>}
-                            <button
-                                type="button"
-                                onClick={() => editForm.setData('items', [...editForm.data.items, { ...BLANK_LINE }])}
-                                className="text-sm text-blue-600"
-                            >
-                                + Add line
-                            </button>
+                                    <tr>
+                                        <th scope="row" className="px-4 pb-3 pt-1.5 text-right font-semibold text-slate-900 sm:px-5">
+                                            Total
+                                        </th>
+                                        <td className="tabular px-4 pb-3 pt-1.5 text-right font-semibold text-slate-900 sm:px-5">
+                                            {formatPeso(invoice.total)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
+                        {invoice.notes && (
+                            <CardBody className="border-t border-slate-200 text-sm text-slate-600">
+                                <span className="font-medium text-slate-700">Notes: </span>
+                                {invoice.notes}
+                            </CardBody>
+                        )}
+                    </Card>
 
-                        <div>
-                            <label className="mb-1 block text-sm">Discount (₱)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                max="99999999.99"
-                                step="0.01"
-                                className="w-full rounded border px-3 py-2"
-                                value={editForm.data.discount_amount}
-                                onChange={(e) => editForm.setData('discount_amount', e.target.value)}
-                            />
-                            {editForm.errors.discount_amount && (
-                                <p className="text-sm text-red-600">{editForm.errors.discount_amount}</p>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="mb-1 block text-sm">Notes</label>
-                            <textarea
-                                className="w-full rounded border px-3 py-2"
-                                rows={2}
-                                value={editForm.data.notes}
-                                onChange={(e) => editForm.setData('notes', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => { editForm.clearErrors(); setShowEdit(false); }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={editForm.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </form>
+                    <Card className="overflow-hidden">
+                        <CardHeader
+                            title="Payments"
+                            description="Append-only — a mistaken payment is corrected by a future refund, never edited."
+                        />
+                        {invoice.payments.length === 0 ? (
+                            <CardBody className="text-sm text-slate-500">No payments recorded.</CardBody>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[32rem] text-sm">
+                                    <caption className="sr-only">Payments recorded against this invoice</caption>
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
+                                                Date
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600">
+                                                Method
+                                            </th>
+                                            <th scope="col" className="px-4 py-2 font-medium text-slate-600">
+                                                Reference
+                                            </th>
+                                            <th
+                                                scope="col"
+                                                className="px-4 py-2 text-right font-medium text-slate-600 sm:px-5"
+                                            >
+                                                Amount
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {invoice.payments.map((payment) => (
+                                            <tr key={payment.id}>
+                                                <td className="tabular px-4 py-2.5 text-slate-700 sm:px-5">
+                                                    {formatDate(payment.paid_on)}
+                                                </td>
+                                                <td className="px-4 py-2.5 capitalize text-slate-700">
+                                                    {methodLabel(payment.method)}
+                                                </td>
+                                                <td className="px-4 py-2.5 text-slate-400">
+                                                    {payment.reference || '—'}
+                                                </td>
+                                                <td className="tabular px-4 py-2.5 text-right text-slate-800 sm:px-5">
+                                                    {formatPeso(payment.amount)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="border-t border-slate-200 bg-slate-50">
+                                        <tr>
+                                            <th
+                                                scope="row"
+                                                colSpan={3}
+                                                className="px-4 py-1.5 text-right font-normal text-slate-500 sm:px-5"
+                                            >
+                                                Paid
+                                            </th>
+                                            <td className="tabular px-4 py-1.5 text-right text-slate-700 sm:px-5">
+                                                {formatPeso(invoice.amount_paid)}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th
+                                                scope="row"
+                                                colSpan={3}
+                                                className="px-4 pb-3 pt-1.5 text-right font-semibold text-slate-900 sm:px-5"
+                                            >
+                                                Balance due
+                                            </th>
+                                            <td className="tabular px-4 pb-3 pt-1.5 text-right font-semibold text-slate-900 sm:px-5">
+                                                {formatPeso(invoice.balance)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        )}
+                    </Card>
                 </div>
-            )}
+            </PageContainer>
 
-            {showPayment && (
-                <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-                    <form onSubmit={submitPayment} className="my-8 w-full max-w-md space-y-4 rounded bg-white p-6">
-                        <h3 className="font-semibold">Record payment</h3>
-                        <p className="text-sm text-gray-500">Balance due: {formatPeso(invoice.balance)}</p>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="mb-1 block text-sm">Amount (₱)</label>
-                                <input
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    editForm.patch(route('invoices.update', invoice.id), {
+                        preserveScroll: true,
+                        onSuccess: () => setShowEdit(false),
+                    });
+                }}
+                show={showEdit}
+                onClose={() => setShowEdit(false)}
+                closeable={!editForm.processing}
+                title="Edit invoice"
+                description="Only a draft can be edited. Issuing freezes these lines permanently."
+                width="3xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowEdit(false)} disabled={editForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={editForm.processing}>
+                            {editForm.processing ? 'Saving…' : 'Save draft'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    {editForm.data.items.map((line, index) => (
+                        <div key={index} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                            <div className="mb-3 flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Line {index + 1}
+                                </span>
+                                {editForm.data.items.length > 1 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        aria-label={`Remove line ${index + 1}`}
+                                        onClick={() =>
+                                            editForm.setData(
+                                                'items',
+                                                editForm.data.items.filter((_, i) => i !== index),
+                                            )
+                                        }
+                                        className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-6">
+                                <SelectField
+                                    label="Link to treatment"
+                                    className="sm:col-span-6"
+                                    value={line.treatment_plan_item_id}
+                                    onChange={(e) => linkTreatment(index, e.target.value)}
+                                >
+                                    <option value="">Not linked</option>
+                                    {treatmentPlanItems.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.label}
+                                        </option>
+                                    ))}
+                                </SelectField>
+                                <Field
+                                    label="Description"
+                                    required
+                                    className="sm:col-span-4"
+                                    value={line.description}
+                                    onChange={(e) => setLine(index, { description: e.target.value })}
+                                    error={editForm.errors[`items.${index}.description`]}
+                                />
+                                <Field
+                                    label="Amount (₱)"
+                                    required
                                     type="number"
                                     min="0"
+                                    max="99999999.99"
                                     step="0.01"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={paymentForm.data.amount}
-                                    onChange={(e) => paymentForm.setData('amount', e.target.value)}
+                                    className="sm:col-span-2"
+                                    inputClassName="tabular"
+                                    value={line.amount}
+                                    onChange={(e) => setLine(index, { amount: e.target.value })}
+                                    error={editForm.errors[`items.${index}.amount`]}
                                 />
-                                {paymentForm.errors.amount && (
-                                    <p className="text-sm text-red-600">{paymentForm.errors.amount}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-sm">Method</label>
-                                <select
-                                    className="w-full rounded border px-3 py-2"
-                                    value={paymentForm.data.method}
-                                    onChange={(e) => paymentForm.setData('method', e.target.value)}
-                                >
-                                    {PAYMENT_METHODS.map((method) => (
-                                        <option key={method} value={method}>{methodLabel(method)}</option>
-                                    ))}
-                                </select>
-                                {paymentForm.errors.method && (
-                                    <p className="text-sm text-red-600">{paymentForm.errors.method}</p>
-                                )}
                             </div>
                         </div>
+                    ))}
 
-                        <div>
-                            <label className="mb-1 block text-sm">Date paid</label>
-                            <input
-                                type="date"
-                                className="w-full rounded border px-3 py-2"
-                                value={paymentForm.data.paid_on}
-                                onChange={(e) => paymentForm.setData('paid_on', e.target.value)}
-                            />
-                        </div>
+                    {editForm.errors.items && (
+                        <p className="text-xs font-medium text-rose-600">{editForm.errors.items}</p>
+                    )}
 
-                        <div>
-                            <label className="mb-1 block text-sm">Reference (optional)</label>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={paymentForm.data.reference}
-                                onChange={(e) => paymentForm.setData('reference', e.target.value)}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="mb-1 block text-sm">Note (optional)</label>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={paymentForm.data.note}
-                                onChange={(e) => paymentForm.setData('note', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => { paymentForm.clearErrors(); setShowPayment(false); }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={paymentForm.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Record
-                            </button>
-                        </div>
-                    </form>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={Plus}
+                        onClick={() => editForm.setData('items', [...editForm.data.items, { ...BLANK_LINE }])}
+                    >
+                        Add line
+                    </Button>
                 </div>
-            )}
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field
+                        label="Discount (₱)"
+                        type="number"
+                        min="0"
+                        max="99999999.99"
+                        step="0.01"
+                        inputClassName="tabular"
+                        value={editForm.data.discount_amount}
+                        onChange={(e) => editForm.setData('discount_amount', e.target.value)}
+                        error={editForm.errors.discount_amount}
+                        hint="Cannot exceed the line-item subtotal."
+                    />
+                </div>
+
+                <TextareaField
+                    label="Notes"
+                    className="mt-4"
+                    rows={2}
+                    value={editForm.data.notes}
+                    onChange={(e) => editForm.setData('notes', e.target.value)}
+                    error={editForm.errors.notes}
+                />
+            </Modal>
+
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    paymentForm.post(route('invoice-payments.store', invoice.id), {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            paymentForm.reset();
+                            setShowPayment(false);
+                        },
+                    });
+                }}
+                show={showPayment}
+                onClose={() => setShowPayment(false)}
+                closeable={!paymentForm.processing}
+                title="Record payment"
+                description={`Balance due ${formatPeso(invoice.balance)}. A payment cannot exceed it, and cannot be edited once saved.`}
+                width="md"
+                footer={
+                    <>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowPayment(false)}
+                            disabled={paymentForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={paymentForm.processing}>
+                            {paymentForm.processing ? 'Recording…' : 'Record payment'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Amount (₱)"
+                            required
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputClassName="tabular"
+                            value={paymentForm.data.amount}
+                            onChange={(e) => paymentForm.setData('amount', e.target.value)}
+                            error={paymentForm.errors.amount}
+                        />
+                        <SelectField
+                            label="Method"
+                            value={paymentForm.data.method}
+                            onChange={(e) => paymentForm.setData('method', e.target.value)}
+                            error={paymentForm.errors.method}
+                        >
+                            {PAYMENT_METHODS.map((method) => (
+                                <option key={method} value={method}>
+                                    {methodLabel(method)}
+                                </option>
+                            ))}
+                        </SelectField>
+                    </div>
+
+                    <Field
+                        label="Date paid"
+                        type="date"
+                        value={paymentForm.data.paid_on}
+                        onChange={(e) => paymentForm.setData('paid_on', e.target.value)}
+                        error={paymentForm.errors.paid_on}
+                        hint="Defaults to today. Cannot be in the future."
+                    />
+                    <Field
+                        label="Reference"
+                        value={paymentForm.data.reference}
+                        onChange={(e) => paymentForm.setData('reference', e.target.value)}
+                        error={paymentForm.errors.reference}
+                        hint="Transaction or receipt number, if there is one."
+                    />
+                    <Field
+                        label="Note"
+                        value={paymentForm.data.note}
+                        onChange={(e) => paymentForm.setData('note', e.target.value)}
+                        error={paymentForm.errors.note}
+                    />
+                </div>
+            </Modal>
+
+            <ConfirmDialog
+                show={confirming === 'issue'}
+                onClose={() => setConfirming(null)}
+                onConfirm={() => move('issued')}
+                processing={transition.processing}
+                title={`Issue ${invoice.number}?`}
+                confirmLabel="Issue invoice"
+                variant="primary"
+                body={`This freezes the line items and the ${formatPeso(invoice.total)} total permanently. An issued invoice can only be voided, and only while it has no payments.`}
+            />
+
+            <ConfirmDialog
+                show={confirming === 'void'}
+                onClose={() => setConfirming(null)}
+                onConfirm={() => move('void')}
+                processing={transition.processing}
+                title={`Void ${invoice.number}?`}
+                confirmLabel="Void invoice"
+                body="The invoice stays on the record but is excluded from balances and reports. This cannot be undone — a voided invoice can never be reissued."
+            />
         </AuthenticatedLayout>
     );
 }

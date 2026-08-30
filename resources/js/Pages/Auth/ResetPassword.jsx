@@ -22,7 +22,10 @@ export default function ResetPassword({ token, email }) {
     };
 
     return (
-        <GuestLayout>
+        <GuestLayout
+            title="Choose a new password"
+            description="At least 12 characters, with letters and numbers."
+        >
             <Head title="Reset Password" />
 
             <form onSubmit={submit}>

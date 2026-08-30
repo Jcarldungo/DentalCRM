@@ -38,7 +38,7 @@ class PrescriptionController extends Controller
         $rx->created_by = $request->user()->id;
         $rx->save();
 
-        return back();
+        return back()->with('success', 'Prescription added.');
     }
 
     /**
@@ -65,6 +65,6 @@ class PrescriptionController extends Controller
         $prescription->discontinued_reason = $validated['discontinued_reason'] ?? null;
         $prescription->save();
 
-        return back();
+        return back()->with('success', 'Prescription discontinued.');
     }
 }

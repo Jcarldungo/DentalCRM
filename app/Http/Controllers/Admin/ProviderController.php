@@ -26,9 +26,9 @@ class ProviderController extends Controller
             'active' => ['sometimes', 'boolean'],
         ]);
 
-        Provider::create($validated);
+        $provider = Provider::create($validated);
 
-        return back();
+        return back()->with('success', "{$provider->name} was added.");
     }
 
     public function update(Request $request, Provider $provider): RedirectResponse
@@ -41,7 +41,7 @@ class ProviderController extends Controller
 
         $provider->update($validated);
 
-        return back();
+        return back()->with('success', 'Provider saved.');
     }
 
     public function destroy(Provider $provider): RedirectResponse
@@ -50,8 +50,9 @@ class ProviderController extends Controller
             return back()->withErrors(['provider' => 'This provider has appointments and cannot be deleted. Mark them inactive instead.']);
         }
 
+        $name = $provider->name;
         $provider->delete();
 
-        return back();
+        return back()->with('success', "{$name} was removed.");
     }
 }

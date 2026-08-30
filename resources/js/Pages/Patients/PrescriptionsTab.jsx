@@ -1,56 +1,66 @@
-import { useState } from 'react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal from '@/Components/UI/Modal';
+import { EmptyState, SectionHeading } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { prescriptionStatus } from '@/Components/UI/statuses';
 import { useForm } from '@inertiajs/react';
+import { Pill, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { formatDate, formatDateTime } from './format';
-
-function medicationLine(rx) {
-    return [
-        `${rx.medication} ${rx.dosage}`,
-        rx.frequency,
-        rx.duration,
-        rx.quantity,
-    ]
-        .filter(Boolean)
-        .join(' · ');
-}
 
 function PrescriptionCard({ rx, onDiscontinue }) {
     const discontinued = rx.status === 'discontinued';
 
     return (
-        <div className={`bg-white shadow rounded p-4 text-sm ${discontinued ? 'opacity-70' : ''}`}>
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <div className={`font-medium ${discontinued ? 'line-through' : ''}`}>
-                        {medicationLine(rx)}
+        <Card className={`p-4 ${discontinued ? 'bg-slate-50' : ''}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h4
+                            className={`text-sm font-semibold ${discontinued ? 'text-slate-500 line-through' : 'text-slate-900'}`}
+                        >
+                            {rx.medication}
+                        </h4>
+                        <StatusBadge status={prescriptionStatus(rx.status)} />
                     </div>
-                    <div className="text-gray-500">
-                        {rx.provider_name || '—'}
-                        {rx.appointment_start_time && ` · linked to ${formatDateTime(rx.appointment_start_time)}`}
-                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                        {[rx.dosage, rx.frequency, rx.duration, rx.quantity].filter(Boolean).join(' · ')}
+                    </p>
                 </div>
                 {!discontinued && (
-                    <button type="button" onClick={onDiscontinue} className="text-sm text-blue-600 shrink-0">
+                    <Button variant="secondary" size="sm" onClick={onDiscontinue}>
                         Discontinue
-                    </button>
+                    </Button>
                 )}
             </div>
-            {rx.instructions && <p className="mt-2">{rx.instructions}</p>}
+
+            {rx.instructions && (
+                <p className="mt-2.5 rounded-lg bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700">
+                    {rx.instructions}
+                </p>
+            )}
+
             {discontinued && (
-                <p className="mt-2 text-gray-600">
-                    Discontinued on {formatDate(rx.discontinued_at)}
+                <p className="mt-2.5 text-xs text-slate-600">
+                    Discontinued {formatDate(rx.discontinued_at)}
                     {rx.discontinued_reason && ` — ${rx.discontinued_reason}`}
                 </p>
             )}
-            <div className="mt-3 text-xs text-gray-400">
+
+            <p className="mt-3 border-t border-slate-100 pt-2.5 text-xs text-slate-400">
                 Prescribed by {rx.creator_name} on {formatDate(rx.created_at)}
-            </div>
-        </div>
+                {rx.provider_name && ` · ${rx.provider_name}`}
+                {rx.appointment_start_time && ` · linked to ${formatDateTime(rx.appointment_start_time)}`}
+            </p>
+        </Card>
     );
 }
 
 export default function PrescriptionsTab({ patient, prescriptions, providers, appointments }) {
-    const [showNewModal, setShowNewModal] = useState(false);
-    const [discontinuingRx, setDiscontinuingRx] = useState(null);
+    const [showNew, setShowNew] = useState(false);
+    const [discontinuing, setDiscontinuing] = useState(null);
 
     const newForm = useForm({
         medication: '',
@@ -63,23 +73,21 @@ export default function PrescriptionsTab({ patient, prescriptions, providers, ap
         instructions: '',
     });
 
-    const discontinueForm = useForm({
-        discontinued_reason: '',
-    });
+    const discontinueForm = useForm({ discontinued_reason: '' });
 
     function openNew() {
         newForm.reset();
         newForm.clearErrors();
-        setShowNewModal(true);
+        setShowNew(true);
     }
 
-    function submitNew(e) {
-        e.preventDefault();
+    function submitNew(event) {
+        event.preventDefault();
         newForm.post(route('prescriptions.store', patient.id), {
             preserveScroll: true,
             onSuccess: () => {
                 newForm.reset();
-                setShowNewModal(false);
+                setShowNew(false);
             },
         });
     }
@@ -87,216 +95,199 @@ export default function PrescriptionsTab({ patient, prescriptions, providers, ap
     function openDiscontinue(rx) {
         discontinueForm.reset();
         discontinueForm.clearErrors();
-        setDiscontinuingRx(rx);
+        setDiscontinuing(rx);
     }
 
-    function submitDiscontinue(e) {
-        e.preventDefault();
-        discontinueForm.patch(route('prescriptions.update', { patient: patient.id, prescription: discontinuingRx.id }), {
-            preserveScroll: true,
-            onSuccess: () => {
-                discontinueForm.reset();
-                setDiscontinuingRx(null);
+    function submitDiscontinue(event) {
+        event.preventDefault();
+        discontinueForm.patch(
+            route('prescriptions.update', { patient: patient.id, prescription: discontinuing.id }),
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    discontinueForm.reset();
+                    setDiscontinuing(null);
+                },
             },
-        });
+        );
     }
 
     const active = prescriptions.filter((rx) => rx.status === 'active');
     const discontinued = prescriptions.filter((rx) => rx.status === 'discontinued');
 
     return (
-        <div>
-            <button
-                type="button"
-                onClick={openNew}
-                className="mb-4 rounded bg-gray-900 px-4 py-2 text-white"
-            >
-                + New Prescription
-            </button>
-
-            <div className="space-y-6">
-                <div>
-                    <h4 className="mb-2 text-sm font-semibold text-gray-500">Active</h4>
+        <div className="space-y-6">
+            <div>
+                <SectionHeading
+                    title="Active"
+                    count={active.length}
+                    actions={
+                        <Button size="sm" icon={Plus} onClick={openNew}>
+                            New prescription
+                        </Button>
+                    }
+                />
+                {active.length === 0 ? (
+                    <Card>
+                        <EmptyState
+                            icon={Pill}
+                            title="No active prescriptions"
+                            description="Prescriptions recorded here are for the patient's chart — nothing is transmitted to a pharmacy."
+                        />
+                    </Card>
+                ) : (
                     <div className="space-y-3">
                         {active.map((rx) => (
                             <PrescriptionCard key={rx.id} rx={rx} onDiscontinue={() => openDiscontinue(rx)} />
                         ))}
-                        {active.length === 0 && (
-                            <div className="bg-white shadow rounded p-4 text-sm text-gray-500">
-                                No active prescriptions.
-                            </div>
-                        )}
                     </div>
-                </div>
-                <div>
-                    <h4 className="mb-2 text-sm font-semibold text-gray-500">Discontinued</h4>
-                    <div className="space-y-3">
-                        {discontinued.map((rx) => (
-                            <PrescriptionCard key={rx.id} rx={rx} onDiscontinue={() => {}} />
-                        ))}
-                        {discontinued.length === 0 && (
-                            <div className="bg-white shadow rounded p-4 text-sm text-gray-500">
-                                No discontinued prescriptions.
-                            </div>
-                        )}
-                    </div>
-                </div>
+                )}
             </div>
 
-            {showNewModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitNew} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">New prescription</h3>
-
-                        <div>
-                            <label className="block text-sm mb-1">Medication</label>
-                            <input
-                                type="text"
-                                className="w-full border rounded px-3 py-2"
-                                value={newForm.data.medication}
-                                onChange={(e) => newForm.setData('medication', e.target.value)}
-                            />
-                            {newForm.errors.medication && <p className="text-sm text-red-600">{newForm.errors.medication}</p>}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Dosage</label>
-                                <input
-                                    type="text"
-                                    className="w-full border rounded px-3 py-2"
-                                    placeholder="e.g. 500 mg"
-                                    value={newForm.data.dosage}
-                                    onChange={(e) => newForm.setData('dosage', e.target.value)}
-                                />
-                                {newForm.errors.dosage && <p className="text-sm text-red-600">{newForm.errors.dosage}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Frequency</label>
-                                <input
-                                    type="text"
-                                    className="w-full border rounded px-3 py-2"
-                                    placeholder="e.g. 3 times daily"
-                                    value={newForm.data.frequency}
-                                    onChange={(e) => newForm.setData('frequency', e.target.value)}
-                                />
-                                {newForm.errors.frequency && <p className="text-sm text-red-600">{newForm.errors.frequency}</p>}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Duration (optional)</label>
-                                <input
-                                    type="text"
-                                    className="w-full border rounded px-3 py-2"
-                                    placeholder="e.g. 7 days"
-                                    value={newForm.data.duration}
-                                    onChange={(e) => newForm.setData('duration', e.target.value)}
-                                />
-                                {newForm.errors.duration && <p className="text-sm text-red-600">{newForm.errors.duration}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Quantity (optional)</label>
-                                <input
-                                    type="text"
-                                    className="w-full border rounded px-3 py-2"
-                                    placeholder="e.g. 21 capsules"
-                                    value={newForm.data.quantity}
-                                    onChange={(e) => newForm.setData('quantity', e.target.value)}
-                                />
-                                {newForm.errors.quantity && <p className="text-sm text-red-600">{newForm.errors.quantity}</p>}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Provider</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={newForm.data.provider_id}
-                                    onChange={(e) => newForm.setData('provider_id', e.target.value)}
-                                >
-                                    <option value="">No provider</option>
-                                    {providers.map((p) => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
-                                {newForm.errors.provider_id && <p className="text-sm text-red-600">{newForm.errors.provider_id}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Link to appointment (optional)</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={newForm.data.appointment_id}
-                                    onChange={(e) => newForm.setData('appointment_id', e.target.value)}
-                                >
-                                    <option value="">No linked appointment</option>
-                                    {appointments.map((a) => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.start_time ? formatDateTime(a.start_time) : 'Unscheduled'} — {a.type ?? 'request'}
-                                        </option>
-                                    ))}
-                                </select>
-                                {newForm.errors.appointment_id && <p className="text-sm text-red-600">{newForm.errors.appointment_id}</p>}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Instructions (optional)</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={newForm.data.instructions}
-                                onChange={(e) => newForm.setData('instructions', e.target.value)}
-                            />
-                            {newForm.errors.instructions && <p className="text-sm text-red-600">{newForm.errors.instructions}</p>}
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => { newForm.clearErrors(); setShowNewModal(false); }} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={newForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+            {discontinued.length > 0 && (
+                <div>
+                    <SectionHeading title="Discontinued" count={discontinued.length} />
+                    <div className="space-y-3">
+                        {discontinued.map((rx) => (
+                            <PrescriptionCard key={rx.id} rx={rx} />
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {discontinuingRx && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitDiscontinue} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">Discontinue: {discontinuingRx.medication}</h3>
-                        <p className="text-sm text-gray-600">
-                            The prescription stays on the record — this marks it no longer active.
-                        </p>
+            <Modal
+                as="form"
+                onSubmit={submitNew}
+                show={showNew}
+                onClose={() => setShowNew(false)}
+                closeable={!newForm.processing}
+                title="New prescription"
+                description="Clinical content is fixed once saved — a prescription can later be discontinued, never edited."
+                width="2xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowNew(false)} disabled={newForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={newForm.processing}>
+                            {newForm.processing ? 'Saving…' : 'Save prescription'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <Field
+                        label="Medication"
+                        required
+                        value={newForm.data.medication}
+                        onChange={(e) => newForm.setData('medication', e.target.value)}
+                        error={newForm.errors.medication}
+                    />
 
-                        <div>
-                            <label className="block text-sm mb-1">Reason (optional)</label>
-                            <input
-                                type="text"
-                                className="w-full border rounded px-3 py-2"
-                                value={discontinueForm.data.discontinued_reason}
-                                onChange={(e) => discontinueForm.setData('discontinued_reason', e.target.value)}
-                            />
-                            {discontinueForm.errors.discontinued_reason && (
-                                <p className="text-sm text-red-600">{discontinueForm.errors.discontinued_reason}</p>
-                            )}
-                        </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Dosage"
+                            required
+                            placeholder="500 mg"
+                            value={newForm.data.dosage}
+                            onChange={(e) => newForm.setData('dosage', e.target.value)}
+                            error={newForm.errors.dosage}
+                        />
+                        <Field
+                            label="Frequency"
+                            required
+                            placeholder="Three times daily"
+                            value={newForm.data.frequency}
+                            onChange={(e) => newForm.setData('frequency', e.target.value)}
+                            error={newForm.errors.frequency}
+                        />
+                        <Field
+                            label="Duration"
+                            placeholder="7 days"
+                            value={newForm.data.duration}
+                            onChange={(e) => newForm.setData('duration', e.target.value)}
+                            error={newForm.errors.duration}
+                        />
+                        <Field
+                            label="Quantity"
+                            placeholder="21 capsules"
+                            value={newForm.data.quantity}
+                            onChange={(e) => newForm.setData('quantity', e.target.value)}
+                            error={newForm.errors.quantity}
+                        />
+                        <SelectField
+                            label="Prescribing provider"
+                            value={newForm.data.provider_id}
+                            onChange={(e) => newForm.setData('provider_id', e.target.value)}
+                            error={newForm.errors.provider_id}
+                        >
+                            <option value="">No provider</option>
+                            {providers.map((provider) => (
+                                <option key={provider.id} value={provider.id}>
+                                    {provider.name}
+                                </option>
+                            ))}
+                        </SelectField>
+                        <SelectField
+                            label="Linked appointment"
+                            value={newForm.data.appointment_id}
+                            onChange={(e) => newForm.setData('appointment_id', e.target.value)}
+                            error={newForm.errors.appointment_id}
+                        >
+                            <option value="">No linked appointment</option>
+                            {appointments.map((appointment) => (
+                                <option key={appointment.id} value={appointment.id}>
+                                    {appointment.start_time
+                                        ? formatDateTime(appointment.start_time)
+                                        : 'Unscheduled'}{' '}
+                                    — {appointment.type ?? 'request'}
+                                </option>
+                            ))}
+                        </SelectField>
+                    </div>
 
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => { discontinueForm.clearErrors(); setDiscontinuingRx(null); }} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={discontinueForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Discontinue
-                            </button>
-                        </div>
-                    </form>
+                    <TextareaField
+                        label="Instructions"
+                        value={newForm.data.instructions}
+                        onChange={(e) => newForm.setData('instructions', e.target.value)}
+                        error={newForm.errors.instructions}
+                        hint="What the patient should be told — timing, food, warnings."
+                    />
                 </div>
-            )}
+            </Modal>
+
+            <Modal
+                as="form"
+                onSubmit={submitDiscontinue}
+                show={discontinuing !== null}
+                onClose={() => setDiscontinuing(null)}
+                closeable={!discontinueForm.processing}
+                title={`Discontinue ${discontinuing?.medication ?? ''}`}
+                description="The prescription stays on the record — this marks it no longer active, and cannot be undone."
+                width="md"
+                footer={
+                    <>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setDiscontinuing(null)}
+                            disabled={discontinueForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" variant="danger-solid" disabled={discontinueForm.processing}>
+                            {discontinueForm.processing ? 'Working…' : 'Discontinue'}
+                        </Button>
+                    </>
+                }
+            >
+                <Field
+                    label="Reason"
+                    value={discontinueForm.data.discontinued_reason}
+                    onChange={(e) => discontinueForm.setData('discontinued_reason', e.target.value)}
+                    error={discontinueForm.errors.discontinued_reason}
+                    hint="Optional, but it is what the next clinician reads."
+                />
+            </Modal>
         </div>
     );
 }

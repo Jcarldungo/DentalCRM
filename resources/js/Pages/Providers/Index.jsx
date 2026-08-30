@@ -1,114 +1,195 @@
-import { useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import Field, { CheckboxField } from '@/Components/UI/Field';
+import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
+import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import Badge from '@/Components/Badge';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Plus, Trash2, UserCog } from 'lucide-react';
+import { useState } from 'react';
 
-const emptyForm = { name: '', specialty: '', active: true };
+const EMPTY = { name: '', specialty: '', active: true };
 
 export default function Index({ providers }) {
-    const [editing, setEditing] = useState(null); // null = create mode, object = editing
-    const [showModal, setShowModal] = useState(false);
-    const { data, setData, post, put, processing, errors, reset } = useForm(emptyForm);
+    const { errors: pageErrors } = usePage().props;
+    const [editing, setEditing] = useState(null);
+    const [showForm, setShowForm] = useState(false);
+    const [confirming, setConfirming] = useState(null);
+    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm(EMPTY);
 
     function openCreate() {
-        setEditing(null);
+        clearErrors();
         reset();
-        setData(emptyForm);
-        setShowModal(true);
+        setData(EMPTY);
+        setEditing(null);
+        setShowForm(true);
     }
 
     function openEdit(provider) {
+        clearErrors();
         setEditing(provider);
         setData({ name: provider.name, specialty: provider.specialty ?? '', active: provider.active });
-        setShowModal(true);
+        setShowForm(true);
     }
 
-    function submit(e) {
-        e.preventDefault();
+    function submit(event) {
+        event.preventDefault();
+        const done = { onSuccess: () => setShowForm(false), preserveScroll: true };
+
         if (editing) {
-            put(route('providers.update', editing.id), { onSuccess: () => setShowModal(false) });
+            put(route('providers.update', editing.id), done);
         } else {
-            post(route('providers.store'), { onSuccess: () => setShowModal(false) });
+            post(route('providers.store'), done);
         }
     }
 
-    function destroy(provider) {
-        if (confirm(`Remove ${provider.name}?`)) {
-            router.delete(route('providers.destroy', provider.id));
-        }
-    }
+    const active = providers.filter((provider) => provider.active).length;
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Providers</h2>}>
+        <AuthenticatedLayout
+            title="Providers"
+            actions={
+                <Button size="sm" icon={Plus} onClick={openCreate}>
+                    Add
+                </Button>
+            }
+        >
             <Head title="Providers" />
 
-            <div className="py-8 max-w-3xl mx-auto sm:px-6 lg:px-8">
-                <button onClick={openCreate} className="mb-4 rounded bg-gray-900 px-4 py-2 text-white">
-                    Add provider
-                </button>
+            <PageContainer>
+                <PageHeader
+                    title="Providers"
+                    description={`${active} active of ${providers.length}`}
+                    actions={
+                        <Button icon={Plus} onClick={openCreate} className="hidden lg:inline-flex">
+                            Add provider
+                        </Button>
+                    }
+                />
 
-                <div className="bg-white shadow rounded divide-y">
-                    {providers.map((provider) => (
-                        <div key={provider.id} className="flex items-center justify-between p-4">
-                            <div>
-                                <div className="font-medium">{provider.name}</div>
-                                <div className="text-sm text-gray-500">{provider.specialty ?? '—'}</div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <Badge tone={provider.active ? 'ok' : 'muted'}>
-                                    {provider.active ? 'Active' : 'Inactive'}
-                                </Badge>
-                                <button onClick={() => openEdit(provider)} className="text-sm text-blue-600">Edit</button>
-                                <button onClick={() => destroy(provider)} className="text-sm text-red-600">Delete</button>
-                            </div>
-                        </div>
-                    ))}
-                    {providers.length === 0 && (
-                        <div className="p-4 text-sm text-gray-500">No providers yet.</div>
+                {/* The delete guard returns its refusal here; without this it
+                    was discarded silently and the row simply stayed put. */}
+                {pageErrors?.provider && (
+                    <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+                    >
+                        {pageErrors.provider}
+                    </div>
+                )}
+
+                <Card>
+                    {providers.length === 0 ? (
+                        <EmptyState
+                            icon={UserCog}
+                            title="No providers yet"
+                            description="Providers are the dentists and hygienists appointments are booked against."
+                            action={
+                                <Button icon={Plus} onClick={openCreate}>
+                                    Add the first provider
+                                </Button>
+                            }
+                        />
+                    ) : (
+                        <ul className="divide-y divide-slate-200">
+                            {providers.map((provider) => (
+                                <li
+                                    key={provider.id}
+                                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5"
+                                >
+                                    <div className="min-w-0">
+                                        <p
+                                            className={`truncate text-sm font-medium ${provider.active ? 'text-slate-900' : 'text-slate-500'}`}
+                                        >
+                                            {provider.name}
+                                        </p>
+                                        <p className="truncate text-xs text-slate-500">
+                                            {provider.specialty || 'No specialty recorded'}
+                                        </p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <StatusBadge
+                                            status={{
+                                                label: provider.active ? 'Active' : 'Inactive',
+                                                tone: provider.active ? 'success' : 'muted',
+                                            }}
+                                        />
+                                        <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setConfirming(provider)}
+                                            aria-label={`Delete ${provider.name}`}
+                                            className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                                        >
+                                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                        </Button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
                     )}
-                </div>
-            </div>
+                </Card>
+            </PageContainer>
 
-            {showModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-                    <form onSubmit={submit} className="bg-white rounded p-6 w-full max-w-sm space-y-4">
-                        <h3 className="font-semibold">{editing ? 'Edit provider' : 'Add provider'}</h3>
-                        <div>
-                            <label className="block text-sm mb-1">Name</label>
-                            <input
-                                className="w-full border rounded px-3 py-2"
-                                value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
-                            />
-                            {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-sm mb-1">Specialty</label>
-                            <input
-                                className="w-full border rounded px-3 py-2"
-                                value={data.specialty}
-                                onChange={(e) => setData('specialty', e.target.value)}
-                            />
-                        </div>
-                        <label className="flex items-center gap-2 text-sm">
-                            <input
-                                type="checkbox"
-                                checked={data.active}
-                                onChange={(e) => setData('active', e.target.checked)}
-                            />
-                            Active
-                        </label>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+            <Modal
+                as="form"
+                onSubmit={submit}
+                show={showForm}
+                onClose={() => setShowForm(false)}
+                closeable={!processing}
+                title={editing ? `Edit ${editing.name}` : 'Add provider'}
+                width="md"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowForm(false)} disabled={processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={processing}>
+                            {processing ? 'Saving…' : 'Save'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <Field
+                        label="Name"
+                        required
+                        value={data.name}
+                        onChange={(e) => setData('name', e.target.value)}
+                        error={errors.name}
+                    />
+                    <Field
+                        label="Specialty"
+                        value={data.specialty}
+                        onChange={(e) => setData('specialty', e.target.value)}
+                        error={errors.specialty}
+                    />
+                    <CheckboxField
+                        label="Active"
+                        hint="Inactive providers keep their history but stop appearing in pickers."
+                        checked={data.active}
+                        onChange={(e) => setData('active', e.target.checked)}
+                    />
                 </div>
-            )}
+            </Modal>
+
+            <ConfirmDialog
+                show={confirming !== null}
+                onClose={() => setConfirming(null)}
+                onConfirm={() =>
+                    router.delete(route('providers.destroy', confirming.id), {
+                        preserveScroll: true,
+                        onFinish: () => setConfirming(null),
+                    })
+                }
+                title={`Delete ${confirming?.name}?`}
+                confirmLabel="Delete provider"
+                body="A provider with any appointment history is protected and will be refused — mark them inactive instead, which keeps their record intact."
+            />
         </AuthenticatedLayout>
     );
 }

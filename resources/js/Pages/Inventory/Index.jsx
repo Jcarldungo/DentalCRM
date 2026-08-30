@@ -1,8 +1,16 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal from '@/Components/UI/Modal';
+import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { stockStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Boxes, Plus, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { formatDate } from '@/Pages/Patients/format';
-import { CATEGORIES, UNITS, STATUS_BADGE, categoryLabel, Field, Dialog } from './shared';
+import { CATEGORIES, UNITS, categoryLabel } from './shared';
 
 const FILTERS = [
     { key: 'all', label: 'All' },
@@ -11,27 +19,19 @@ const FILTERS = [
     { key: 'archived', label: 'Archived' },
 ];
 
-function emptyMessage(filter) {
-    switch (filter) {
-        case 'low':
-            return 'No items are low on stock.';
-        case 'expiring':
-            return 'Nothing is expiring in the next 30 days.';
-        case 'archived':
-            return 'No archived items.';
-        default:
-            return 'No items yet. Add your first item to start tracking stock.';
-    }
-}
+const EMPTY_COPY = {
+    low: 'Nothing is at or below its reorder threshold.',
+    expiring: 'Nothing is expiring in the next 30 days.',
+    archived: 'No archived items. Archiving keeps an item and its ledger but hides it from the default view.',
+    all: 'Add an item to start tracking stock. On-hand is derived from its movement ledger, never entered directly.',
+};
 
 export default function Index({ items, filters }) {
     const [showCreate, setShowCreate] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
 
     useEffect(() => {
-        if (search === (filters.search ?? '')) {
-            return undefined;
-        }
+        if (search === (filters.search ?? '')) return undefined;
 
         const timer = setTimeout(() => {
             router.get(
@@ -55,8 +55,8 @@ export default function Index({ items, filters }) {
         opening_quantity: '',
     });
 
-    function submitCreate(e) {
-        e.preventDefault();
+    function submitCreate(event) {
+        event.preventDefault();
         form.post(route('inventory.store'), {
             onSuccess: () => {
                 form.reset();
@@ -66,219 +66,258 @@ export default function Index({ items, filters }) {
     }
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Inventory</h2>}>
+        <AuthenticatedLayout
+            title="Inventory"
+            actions={
+                <Button size="sm" icon={Plus} onClick={() => { form.clearErrors(); setShowCreate(true); }}>
+                    New item
+                </Button>
+            }
+        >
             <Head title="Inventory" />
 
-            <div className="py-8 max-w-5xl mx-auto sm:px-6 lg:px-8 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap gap-2">
-                        {FILTERS.map((f) => (
-                            <Link
-                                key={f.key}
-                                href={route('inventory.index', {
-                                    filter: f.key,
-                                    search: search || undefined,
-                                })}
-                                preserveState
-                                preserveScroll
-                                replace
-                                className={`rounded border px-3 py-1 text-sm ${
-                                    filters.filter === f.key
-                                        ? 'border-gray-900 bg-gray-900 text-white'
-                                        : 'border-gray-300 text-gray-600'
-                                }`}
-                            >
-                                {f.label}
-                            </Link>
-                        ))}
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setShowCreate(true)}
-                        className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                    >
-                        + New item
-                    </button>
-                </div>
-
-                <input
-                    type="search"
-                    placeholder="Search by name"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full max-w-xs rounded border px-3 py-2 text-sm"
+            <PageContainer>
+                <PageHeader
+                    title="Inventory"
+                    description={`${items.length} item${items.length === 1 ? '' : 's'} in this view`}
+                    actions={
+                        <Button
+                            icon={Plus}
+                            onClick={() => { form.clearErrors(); setShowCreate(true); }}
+                            className="hidden lg:inline-flex"
+                        >
+                            New item
+                        </Button>
+                    }
                 />
 
-                <div className="overflow-x-auto rounded border bg-white shadow-sm">
-                    <table className="w-full text-sm">
-                        <thead className="border-b text-left text-gray-500">
-                            <tr>
-                                <th className="px-4 py-2">Item</th>
-                                <th className="px-4 py-2">Category</th>
-                                <th className="px-4 py-2 text-right">On hand</th>
-                                <th className="px-4 py-2 text-right">Reorder at</th>
-                                <th className="px-4 py-2">Status</th>
-                                <th className="px-4 py-2">Expiry</th>
-                                <th className="px-4 py-2">Supplier</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((item) => (
-                                <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50">
-                                    <td className="px-4 py-2">
-                                        <Link href={route('inventory.show', item.id)} className="text-blue-600">
-                                            {item.name}
-                                        </Link>
-                                    </td>
-                                    <td className="px-4 py-2 capitalize text-gray-600">{categoryLabel(item.category)}</td>
-                                    <td className="px-4 py-2 text-right">
-                                        {item.on_hand} {item.unit}
-                                    </td>
-                                    <td className="px-4 py-2 text-right text-gray-500">{item.reorder_threshold}</td>
-                                    <td className="px-4 py-2">
-                                        <span
-                                            className={`inline-block rounded border px-2 py-0.5 text-xs uppercase ${STATUS_BADGE[item.stock_status]}`}
-                                        >
-                                            {item.stock_status}
-                                        </span>
-                                    </td>
-                                    <td className={`px-4 py-2 ${item.is_expiring_soon ? 'text-amber-700' : 'text-gray-500'}`}>
-                                        {item.expiry_date ? formatDate(item.expiry_date) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-gray-500">{item.supplier ?? '—'}</td>
-                                </tr>
-                            ))}
-                            {items.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
-                                        {emptyMessage(filters.filter)}
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <div role="group" aria-label="Filter inventory" className="flex flex-wrap gap-1.5">
+                        {FILTERS.map((filter) => {
+                            const active = filters.filter === filter.key;
 
-            {showCreate && (
-                <Dialog
-                    onClose={() => {
-                        form.clearErrors();
-                        setShowCreate(false);
-                    }}
-                >
-                    <form onSubmit={submitCreate} className="space-y-4">
-                        <h3 className="font-semibold">New item</h3>
-
-                        <Field label="Name" error={form.errors.name}>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={form.data.name}
-                                onChange={(e) => form.setData('name', e.target.value)}
-                            />
-                        </Field>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Category" error={form.errors.category}>
-                                <select
-                                    className="w-full rounded border px-3 py-2"
-                                    value={form.data.category}
-                                    onChange={(e) => form.setData('category', e.target.value)}
+                            return (
+                                <Link
+                                    key={filter.key}
+                                    href={route('inventory.index', {
+                                        filter: filter.key,
+                                        search: search || undefined,
+                                    })}
+                                    preserveState
+                                    preserveScroll
+                                    replace
+                                    aria-current={active ? 'true' : undefined}
+                                    className={`inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+                                        active
+                                            ? 'bg-brand-600 text-white'
+                                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
                                 >
-                                    {CATEGORIES.map((c) => (
-                                        <option key={c} value={c}>
-                                            {categoryLabel(c)}
-                                        </option>
+                                    {filter.label}
+                                </Link>
+                            );
+                        })}
+                    </div>
+
+                    <div className="relative w-full max-w-xs">
+                        <Search
+                            className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                        />
+                        <input
+                            type="search"
+                            aria-label="Search inventory by name"
+                            placeholder="Search by name…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="h-9 w-full rounded-lg border-slate-300 ps-9 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500"
+                        />
+                    </div>
+                </div>
+
+                <Card className="overflow-hidden">
+                    {items.length === 0 ? (
+                        <EmptyState
+                            icon={Boxes}
+                            title="Nothing here"
+                            description={EMPTY_COPY[filters.filter] ?? EMPTY_COPY.all}
+                        />
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[44rem] text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600 sm:px-5">
+                                            Item
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                            Category
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 text-right font-medium text-slate-600">
+                                            On hand
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 text-right font-medium text-slate-600">
+                                            Reorder at
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                            Status
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                            Expiry
+                                        </th>
+                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600 sm:px-5">
+                                            Supplier
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {items.map((item) => (
+                                        <tr key={item.id} className="transition-colors hover:bg-slate-50">
+                                            <td className="px-4 py-2.5 sm:px-5">
+                                                <Link
+                                                    href={route('inventory.show', item.id)}
+                                                    className="font-medium text-slate-900 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                                >
+                                                    {item.name}
+                                                </Link>
+                                            </td>
+                                            <td className="px-4 py-2.5 capitalize text-slate-600">
+                                                {categoryLabel(item.category)}
+                                            </td>
+                                            <td className="tabular px-4 py-2.5 text-right font-medium text-slate-900">
+                                                {item.on_hand}{' '}
+                                                <span className="font-normal text-slate-500">{item.unit}</span>
+                                            </td>
+                                            <td className="tabular px-4 py-2.5 text-right text-slate-500">
+                                                {item.reorder_threshold}
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                <StatusBadge status={stockStatus(item.stock_status)} />
+                                            </td>
+                                            <td
+                                                className={`tabular px-4 py-2.5 ${
+                                                    item.is_expiring_soon ? 'font-medium text-amber-700' : 'text-slate-500'
+                                                }`}
+                                            >
+                                                {item.expiry_date ? formatDate(item.expiry_date) : '—'}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-slate-500 sm:px-5">
+                                                {item.supplier ?? '—'}
+                                            </td>
+                                        </tr>
                                     ))}
-                                </select>
-                            </Field>
-                            <Field label="Unit" error={form.errors.unit}>
-                                <input
-                                    type="text"
-                                    list="inventory-units"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={form.data.unit}
-                                    onChange={(e) => form.setData('unit', e.target.value)}
-                                />
-                                <datalist id="inventory-units">
-                                    {UNITS.map((u) => (
-                                        <option key={u} value={u} />
-                                    ))}
-                                </datalist>
-                            </Field>
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Card>
+            </PageContainer>
+
+            <Modal
+                as="form"
+                onSubmit={submitCreate}
+                show={showCreate}
+                onClose={() => setShowCreate(false)}
+                closeable={!form.processing}
+                title="New inventory item"
+                description="An opening quantity is recorded as a `received` movement, so the ledger stays the only source of on-hand."
+                width="2xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={form.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={form.processing}>
+                            {form.processing ? 'Creating…' : 'Create item'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <Field
+                        label="Name"
+                        required
+                        value={form.data.name}
+                        onChange={(e) => form.setData('name', e.target.value)}
+                        error={form.errors.name}
+                    />
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <SelectField
+                            label="Category"
+                            value={form.data.category}
+                            onChange={(e) => form.setData('category', e.target.value)}
+                            error={form.errors.category}
+                        >
+                            {CATEGORIES.map((category) => (
+                                <option key={category} value={category}>
+                                    {categoryLabel(category)}
+                                </option>
+                            ))}
+                        </SelectField>
+
+                        <div>
+                            <Field
+                                label="Unit"
+                                required
+                                list="inventory-units"
+                                value={form.data.unit}
+                                onChange={(e) => form.setData('unit', e.target.value)}
+                                error={form.errors.unit}
+                                hint="Whole units only — movements are integers."
+                            />
+                            <datalist id="inventory-units">
+                                {UNITS.map((unit) => (
+                                    <option key={unit} value={unit} />
+                                ))}
+                            </datalist>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Reorder threshold" error={form.errors.reorder_threshold}>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={form.data.reorder_threshold}
-                                    onChange={(e) => form.setData('reorder_threshold', e.target.value)}
-                                />
-                            </Field>
-                            <Field label="Opening quantity" error={form.errors.opening_quantity}>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={form.data.opening_quantity}
-                                    onChange={(e) => form.setData('opening_quantity', e.target.value)}
-                                />
-                            </Field>
-                        </div>
+                        <Field
+                            label="Reorder threshold"
+                            required
+                            type="number"
+                            min="0"
+                            inputClassName="tabular"
+                            value={form.data.reorder_threshold}
+                            onChange={(e) => form.setData('reorder_threshold', e.target.value)}
+                            error={form.errors.reorder_threshold}
+                            hint="At or below this, the item reads as low stock."
+                        />
+                        <Field
+                            label="Opening quantity"
+                            type="number"
+                            min="0"
+                            inputClassName="tabular"
+                            value={form.data.opening_quantity}
+                            onChange={(e) => form.setData('opening_quantity', e.target.value)}
+                            error={form.errors.opening_quantity}
+                        />
+                        <Field
+                            label="Supplier"
+                            value={form.data.supplier}
+                            onChange={(e) => form.setData('supplier', e.target.value)}
+                            error={form.errors.supplier}
+                        />
+                        <Field
+                            label="Expiry date"
+                            type="date"
+                            value={form.data.expiry_date}
+                            onChange={(e) => form.setData('expiry_date', e.target.value)}
+                            error={form.errors.expiry_date}
+                            hint="One date per item — batches are not tracked separately."
+                        />
+                    </div>
 
-                        <Field label="Supplier (optional)" error={form.errors.supplier}>
-                            <input
-                                type="text"
-                                className="w-full rounded border px-3 py-2"
-                                value={form.data.supplier}
-                                onChange={(e) => form.setData('supplier', e.target.value)}
-                            />
-                        </Field>
-
-                        <Field label="Expiry date (optional)" error={form.errors.expiry_date}>
-                            <input
-                                type="date"
-                                className="w-full rounded border px-3 py-2"
-                                value={form.data.expiry_date}
-                                onChange={(e) => form.setData('expiry_date', e.target.value)}
-                            />
-                        </Field>
-
-                        <Field label="Notes (optional)" error={form.errors.notes}>
-                            <textarea
-                                rows={2}
-                                className="w-full rounded border px-3 py-2"
-                                value={form.data.notes}
-                                onChange={(e) => form.setData('notes', e.target.value)}
-                            />
-                        </Field>
-
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    form.clearErrors();
-                                    setShowCreate(false);
-                                }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={form.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Create
-                            </button>
-                        </div>
-                    </form>
-                </Dialog>
-            )}
+                    <TextareaField
+                        label="Notes"
+                        rows={2}
+                        value={form.data.notes}
+                        onChange={(e) => form.setData('notes', e.target.value)}
+                        error={form.errors.notes}
+                    />
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

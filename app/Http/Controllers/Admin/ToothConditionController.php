@@ -33,6 +33,6 @@ class ToothConditionController extends Controller
         $condition->created_by = $request->user()->id;
         $condition->save();
 
-        return back();
+        return back()->with('success', 'Chart entry added.');
     }
 }

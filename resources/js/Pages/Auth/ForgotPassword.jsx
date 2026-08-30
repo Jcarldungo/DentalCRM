@@ -16,17 +16,20 @@ export default function ForgotPassword({ status }) {
     };
 
     return (
-        <GuestLayout>
+        <GuestLayout
+            title="Reset your password"
+            description="Enter your account email and we will send you a reset link."
+        >
             <Head title="Forgot Password" />
 
-            <div className="mb-4 text-sm text-gray-600">
+            <div className="mb-4 text-sm text-slate-600">
                 Forgot your password? No problem. Just let us know your email
                 address and we will email you a password reset link that will
                 allow you to choose a new one.
             </div>
 
             {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
+                <div role="status" className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
                     {status}
                 </div>
             )}

@@ -76,6 +76,6 @@ class StockMovementController extends Controller
             $movement->save();
         });
 
-        return back();
+        return back()->with('success', 'Stock movement recorded.');
     }
 }

@@ -54,6 +54,6 @@ class DentalRecordController extends Controller
         $record->created_by = $request->user()->id;
         $record->save();
 
-        return back();
+        return back()->with('success', 'Dental record added.');
     }
 }

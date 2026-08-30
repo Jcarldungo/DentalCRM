@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    /*
+     * Motion in this app is limited to short opacity/transform moves that
+     * exist to show where something came from. Anyone who has asked their
+     * system not to animate gets none of it — including the Headless UI
+     * transitions on modals and dropdowns, which set their own durations
+     * inline and would otherwise ignore the preference.
+     */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /* Money and counts line up in columns. */
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+}

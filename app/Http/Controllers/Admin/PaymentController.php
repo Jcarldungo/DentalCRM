@@ -68,6 +68,6 @@ class PaymentController extends Controller
             $payment->save();
         });
 
-        return back();
+        return back()->with('success', 'Payment recorded.');
     }
 }

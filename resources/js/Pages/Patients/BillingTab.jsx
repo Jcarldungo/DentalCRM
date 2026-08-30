@@ -1,32 +1,28 @@
-import { useState } from 'react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal from '@/Components/UI/Modal';
+import { EmptyState, SectionHeading } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { invoiceDisplayStatus } from '@/Components/UI/statuses';
 import { Link, useForm } from '@inertiajs/react';
+import { Plus, Receipt, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { formatDate, formatPeso } from './format';
-
-// planned / scheduled / in_progress / completed — a treatment worth putting
-// on a bill. Mirrors InvoiceController::linkableTreatmentItems() (see
-// CLAUDE.md "Known gaps").
-const BILLABLE_TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress', 'completed'];
-
-const STATUS_BADGE = {
-    draft: 'bg-gray-100 text-gray-700 border-gray-300',
-    issued: 'bg-blue-100 text-blue-800 border-blue-300',
-    paid: 'bg-green-100 text-green-800 border-green-300',
-    void: 'bg-gray-200 text-gray-500 border-gray-300 line-through',
-};
-
-function statusLabel(invoice) {
-    if (invoice.is_paid) return 'paid';
-    return invoice.status;
-}
 
 const BLANK_LINE = { description: '', amount: '', treatment_plan_item_id: '' };
 
-export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
-    const [showNewModal, setShowNewModal] = useState(false);
-
-    const billable = treatmentPlanItems.filter((tpi) =>
-        BILLABLE_TREATMENT_STATUSES.includes(tpi.status),
+function Money({ label, value, tone = 'text-slate-900' }) {
+    return (
+        <div>
+            <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+            <dd className={`tabular mt-0.5 text-lg font-semibold ${tone}`}>{formatPeso(value)}</dd>
+        </div>
     );
+}
+
+export default function BillingTab({ patient, invoices, billableTreatmentItems }) {
+    const [showNew, setShowNew] = useState(false);
 
     const form = useForm({
         patient_id: patient.id,
@@ -36,7 +32,6 @@ export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
     });
 
     function openNew() {
-        form.reset();
         form.clearErrors();
         form.setData({
             patient_id: patient.id,
@@ -44,7 +39,7 @@ export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
             discount_amount: '',
             notes: '',
         });
-        setShowNewModal(true);
+        setShowNew(true);
     }
 
     function setLine(index, patch) {
@@ -54,220 +49,238 @@ export default function BillingTab({ patient, invoices, treatmentPlanItems }) {
         );
     }
 
-    function linkTreatment(index, tpiId) {
-        if (!tpiId) {
+    /** Linking a treatment pre-fills the line from it; the copy is then editable. */
+    function linkTreatment(index, id) {
+        if (!id) {
             setLine(index, { treatment_plan_item_id: '' });
             return;
         }
-        const tpi = billable.find((t) => String(t.id) === String(tpiId));
+
+        const item = billableTreatmentItems.find((candidate) => String(candidate.id) === String(id));
+
         setLine(index, {
-            treatment_plan_item_id: tpiId,
-            description: tpi ? tpi.treatment : form.data.items[index].description,
-            amount: tpi ? tpi.estimated_cost : form.data.items[index].amount,
+            treatment_plan_item_id: id,
+            description: item ? item.treatment : form.data.items[index].description,
+            amount: item ? item.estimated_cost : form.data.items[index].amount,
         });
     }
 
-    function addLine() {
-        form.setData('items', [...form.data.items, { ...BLANK_LINE }]);
+    function submit(event) {
+        event.preventDefault();
+        form.post(route('invoices.store'), { onSuccess: () => setShowNew(false) });
     }
 
-    function removeLine(index) {
-        if (form.data.items.length === 1) return;
-        form.setData('items', form.data.items.filter((_, i) => i !== index));
-    }
+    const live = invoices.filter((invoice) => invoice.status !== 'void');
+    const totals = {
+        billed: live.reduce((sum, invoice) => sum + invoice.total, 0),
+        paid: live.reduce((sum, invoice) => sum + invoice.amount_paid, 0),
+        outstanding: live.reduce((sum, invoice) => sum + invoice.balance, 0),
+    };
 
-    function submit(e) {
-        e.preventDefault();
-        form.post(route('invoices.store'), {
-            onSuccess: () => setShowNewModal(false),
-        });
-    }
-
-    const totalBilled = invoices
-        .filter((i) => i.status !== 'void')
-        .reduce((sum, i) => sum + i.total, 0);
-    const totalPaid = invoices
-        .filter((i) => i.status !== 'void')
-        .reduce((sum, i) => sum + i.amount_paid, 0);
-    const totalOutstanding = invoices
-        .filter((i) => i.status !== 'void')
-        .reduce((sum, i) => sum + i.balance, 0);
+    const subtotal = form.data.items.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+    const draftTotal = subtotal - (Number(form.data.discount_amount) || 0);
 
     return (
-        <div>
-            <div className="mb-4 flex flex-wrap gap-6 rounded bg-white p-4 text-sm shadow">
-                <div>
-                    <div className="text-gray-500">Billed</div>
-                    <div className="font-medium">{formatPeso(totalBilled)}</div>
-                </div>
-                <div>
-                    <div className="text-gray-500">Paid</div>
-                    <div className="font-medium">{formatPeso(totalPaid)}</div>
-                </div>
-                <div>
-                    <div className="text-gray-500">Outstanding</div>
-                    <div className="font-medium">{formatPeso(totalOutstanding)}</div>
-                </div>
-            </div>
+        <div className="space-y-5">
+            <Card>
+                <dl className="grid grid-cols-3 gap-4 p-4 sm:p-5">
+                    <Money label="Billed" value={totals.billed} />
+                    <Money label="Paid" value={totals.paid} tone="text-emerald-700" />
+                    <Money
+                        label="Outstanding"
+                        value={totals.outstanding}
+                        tone={totals.outstanding > 0 ? 'text-amber-700' : 'text-slate-900'}
+                    />
+                </dl>
+            </Card>
 
-            <button
-                type="button"
-                onClick={openNew}
-                className="mb-4 rounded bg-gray-900 px-4 py-2 text-white"
-            >
-                + New Invoice
-            </button>
+            <div>
+                <SectionHeading
+                    title="Invoices"
+                    count={invoices.length}
+                    actions={
+                        <Button size="sm" icon={Plus} onClick={openNew}>
+                            New invoice
+                        </Button>
+                    }
+                />
 
-            <div className="space-y-2">
-                {invoices.map((invoice) => (
-                    <Link
-                        key={invoice.id}
-                        href={route('invoices.show', invoice.id)}
-                        className="block rounded border bg-white p-4 text-sm shadow-sm hover:bg-gray-50"
-                    >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium">{invoice.number}</span>
-                            <span
-                                className={`inline-block rounded border px-2 py-0.5 text-xs ${STATUS_BADGE[statusLabel(invoice)]}`}
-                            >
-                                {statusLabel(invoice)}
-                            </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-4 text-gray-500">
-                            <span>{formatDate(invoice.created_at)}</span>
-                            <span>Total {formatPeso(invoice.total)}</span>
-                            <span>Balance {formatPeso(invoice.balance)}</span>
-                        </div>
-                    </Link>
-                ))}
-                {invoices.length === 0 && (
-                    <div className="rounded border bg-white p-4 text-sm text-gray-500 shadow-sm">
-                        No invoices for this patient yet.
-                    </div>
+                {invoices.length === 0 ? (
+                    <Card>
+                        <EmptyState
+                            icon={Receipt}
+                            title="No invoices yet"
+                            description="An invoice starts as a draft you can edit, then is issued to freeze its lines."
+                            action={
+                                <Button icon={Plus} onClick={openNew}>
+                                    Create the first invoice
+                                </Button>
+                            }
+                        />
+                    </Card>
+                ) : (
+                    <Card>
+                        <ul className="divide-y divide-slate-200">
+                            {invoices.map((invoice) => (
+                                <li key={invoice.id}>
+                                    <Link
+                                        href={route('invoices.show', invoice.id)}
+                                        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 sm:px-5"
+                                    >
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <span className="tabular text-sm font-medium text-slate-900">
+                                                {invoice.number}
+                                            </span>
+                                            <StatusBadge status={invoiceDisplayStatus(invoice)} />
+                                        </div>
+                                        <div className="flex items-center gap-5 text-xs">
+                                            <span className="text-slate-500">{formatDate(invoice.created_at)}</span>
+                                            <span className="tabular text-slate-700">
+                                                Total {formatPeso(invoice.total)}
+                                            </span>
+                                            <span
+                                                className={`tabular font-medium ${
+                                                    invoice.balance > 0 ? 'text-amber-700' : 'text-slate-500'
+                                                }`}
+                                            >
+                                                Balance {formatPeso(invoice.balance)}
+                                            </span>
+                                        </div>
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </Card>
                 )}
             </div>
 
-            {showNewModal && (
-                <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-                    <form onSubmit={submit} className="my-8 w-full max-w-2xl space-y-4 rounded bg-white p-6">
-                        <h3 className="font-semibold">New invoice</h3>
+            <Modal
+                as="form"
+                onSubmit={submit}
+                show={showNew}
+                onClose={() => setShowNew(false)}
+                closeable={!form.processing}
+                title="New invoice"
+                description={`Draft for ${patient.first_name} ${patient.last_name}. Lines stay editable until it is issued.`}
+                width="3xl"
+                footer={
+                    <>
+                        <span className="tabular me-auto text-sm text-slate-600">
+                            Total <span className="font-semibold text-slate-900">{formatPeso(draftTotal)}</span>
+                        </span>
+                        <Button variant="secondary" onClick={() => setShowNew(false)} disabled={form.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={form.processing}>
+                            {form.processing ? 'Creating…' : 'Create draft'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    {form.data.items.map((line, index) => (
+                        <div key={index} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                            <div className="mb-3 flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Line {index + 1}
+                                </span>
+                                {form.data.items.length > 1 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        onClick={() =>
+                                            form.setData(
+                                                'items',
+                                                form.data.items.filter((_, i) => i !== index),
+                                            )
+                                        }
+                                        aria-label={`Remove line ${index + 1}`}
+                                        className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                    </Button>
+                                )}
+                            </div>
 
-                        <div className="space-y-3">
-                            {form.data.items.map((line, index) => (
-                                <div key={index} className="rounded border p-3">
-                                    <div className="mb-2">
-                                        <label className="mb-1 block text-sm">Link to treatment (optional)</label>
-                                        <select
-                                            className="w-full rounded border px-3 py-2"
-                                            value={line.treatment_plan_item_id}
-                                            onChange={(e) => linkTreatment(index, e.target.value)}
-                                        >
-                                            <option value="">Not linked</option>
-                                            {billable.map((tpi) => (
-                                                <option key={tpi.id} value={tpi.id}>
-                                                    {tpi.treatment}
-                                                    {tpi.tooth_number ? ` · tooth ${tpi.tooth_number}` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2">
-                                            <label className="mb-1 block text-sm">Description</label>
-                                            <input
-                                                type="text"
-                                                className="w-full rounded border px-3 py-2"
-                                                value={line.description}
-                                                onChange={(e) => setLine(index, { description: e.target.value })}
-                                            />
-                                            {form.errors[`items.${index}.description`] && (
-                                                <p className="text-sm text-red-600">
-                                                    {form.errors[`items.${index}.description`]}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="mb-1 block text-sm">Amount (₱)</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="99999999.99"
-                                                step="0.01"
-                                                className="w-full rounded border px-3 py-2"
-                                                value={line.amount}
-                                                onChange={(e) => setLine(index, { amount: e.target.value })}
-                                            />
-                                            {form.errors[`items.${index}.amount`] && (
-                                                <p className="text-sm text-red-600">
-                                                    {form.errors[`items.${index}.amount`]}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {form.data.items.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeLine(index)}
-                                            className="mt-2 text-sm text-red-600"
-                                        >
-                                            Remove line
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                            {form.errors.items && <p className="text-sm text-red-600">{form.errors.items}</p>}
-                            <button type="button" onClick={addLine} className="text-sm text-blue-600">
-                                + Add line
-                            </button>
-                        </div>
+                            <div className="grid gap-3 sm:grid-cols-6">
+                                <SelectField
+                                    label="Link to treatment"
+                                    className="sm:col-span-6"
+                                    value={line.treatment_plan_item_id}
+                                    onChange={(e) => linkTreatment(index, e.target.value)}
+                                    hint="Pre-fills the description and amount, and records the provider on the line."
+                                >
+                                    <option value="">Not linked</option>
+                                    {billableTreatmentItems.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.label}
+                                        </option>
+                                    ))}
+                                </SelectField>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="mb-1 block text-sm">Discount (₱)</label>
-                                <input
+                                <Field
+                                    label="Description"
+                                    required
+                                    className="sm:col-span-4"
+                                    value={line.description}
+                                    onChange={(e) => setLine(index, { description: e.target.value })}
+                                    error={form.errors[`items.${index}.description`]}
+                                />
+                                <Field
+                                    label="Amount (₱)"
+                                    required
                                     type="number"
                                     min="0"
                                     max="99999999.99"
                                     step="0.01"
-                                    className="w-full rounded border px-3 py-2"
-                                    value={form.data.discount_amount}
-                                    onChange={(e) => form.setData('discount_amount', e.target.value)}
+                                    className="sm:col-span-2"
+                                    inputClassName="tabular"
+                                    value={line.amount}
+                                    onChange={(e) => setLine(index, { amount: e.target.value })}
+                                    error={form.errors[`items.${index}.amount`]}
                                 />
-                                {form.errors.discount_amount && (
-                                    <p className="text-sm text-red-600">{form.errors.discount_amount}</p>
-                                )}
                             </div>
                         </div>
+                    ))}
 
-                        <div>
-                            <label className="mb-1 block text-sm">Notes</label>
-                            <textarea
-                                className="w-full rounded border px-3 py-2"
-                                rows={2}
-                                value={form.data.notes}
-                                onChange={(e) => form.setData('notes', e.target.value)}
-                            />
-                        </div>
+                    {form.errors.items && (
+                        <p className="text-xs font-medium text-rose-600">{form.errors.items}</p>
+                    )}
 
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => { form.clearErrors(); setShowNewModal(false); }}
-                                className="px-4 py-2 text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={form.processing}
-                                className="rounded bg-gray-900 px-4 py-2 text-sm text-white"
-                            >
-                                Create draft
-                            </button>
-                        </div>
-                    </form>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={Plus}
+                        onClick={() => form.setData('items', [...form.data.items, { ...BLANK_LINE }])}
+                    >
+                        Add line
+                    </Button>
                 </div>
-            )}
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field
+                        label="Discount (₱)"
+                        type="number"
+                        min="0"
+                        max="99999999.99"
+                        step="0.01"
+                        inputClassName="tabular"
+                        value={form.data.discount_amount}
+                        onChange={(e) => form.setData('discount_amount', e.target.value)}
+                        error={form.errors.discount_amount}
+                        hint={`Applied to the whole invoice. Subtotal ${formatPeso(subtotal)}.`}
+                    />
+                </div>
+
+                <TextareaField
+                    label="Notes"
+                    className="mt-4"
+                    rows={2}
+                    value={form.data.notes}
+                    onChange={(e) => form.setData('notes', e.target.value)}
+                    error={form.errors.notes}
+                />
+            </Modal>
         </div>
     );
 }

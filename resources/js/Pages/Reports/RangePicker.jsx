@@ -32,54 +32,55 @@ export default function RangePicker({ meta }) {
     }
 
     return (
-        <div className="sticky top-0 z-10 -mx-4 mb-6 border-b bg-gray-50/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded sm:border">
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="sticky top-16 z-20 -mx-4 mb-6 border-y border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+            <div role="group" aria-label="Report date range" className="flex flex-wrap items-center gap-1.5">
                 {PRESETS.map(([value, text]) => (
                     <button
                         key={value}
                         type="button"
                         onClick={() => pick(value)}
-                        className={`rounded border px-3 py-1 text-sm ${
+                        aria-pressed={meta.range === value}
+                        className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
                             meta.range === value
-                                ? 'border-gray-900 bg-gray-900 text-white'
-                                : 'border-gray-300 text-gray-600'
+                                ? 'bg-brand-600 text-white'
+                                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                     >
                         {text}
                     </button>
                 ))}
-                <span className="ml-1 text-sm text-gray-500">{meta.label}</span>
+                <span className="ms-1 text-sm text-slate-500">{meta.label}</span>
             </div>
 
             {meta.range === 'custom' && (
                 <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <label className="text-xs text-gray-500">
+                    <label className="text-xs font-medium text-slate-600">
                         From
                         <input
                             type="date"
                             value={start}
                             onChange={(e) => setStart(e.target.value)}
-                            className="mt-1 block rounded border px-2 py-1 text-sm"
+                            className="mt-1 block h-9 rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         />
                     </label>
-                    <label className="text-xs text-gray-500">
+                    <label className="text-xs font-medium text-slate-600">
                         To
                         <input
                             type="date"
                             value={end}
                             onChange={(e) => setEnd(e.target.value)}
-                            className="mt-1 block rounded border px-2 py-1 text-sm"
+                            className="mt-1 block h-9 rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         />
                     </label>
                     <button
                         type="button"
                         onClick={() => go({ range: 'custom', start, end })}
-                        className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white"
+                        className="h-9 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                     >
                         Apply
                     </button>
                     {(errors.start || errors.end || errors.range) && (
-                        <p className="mt-2 w-full text-sm text-red-600">
+                        <p role="alert" className="mt-2 w-full text-sm font-medium text-rose-600">
                             {errors.start || errors.end || errors.range}
                         </p>
                     )}

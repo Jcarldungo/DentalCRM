@@ -77,7 +77,7 @@ class QueueController extends Controller
             ]);
         }
 
-        Appointment::create([
+        $appointment = Appointment::create([
             'patient_id' => $validated['patient_id'],
             'provider_id' => $validated['provider_id'],
             'type' => $validated['type'],
@@ -86,6 +86,6 @@ class QueueController extends Controller
             'end_time' => $end,
         ]);
 
-        return back();
+        return back()->with('success', $appointment->patient->full_name.' was added to the queue.');
     }
 }

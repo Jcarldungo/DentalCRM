@@ -188,4 +188,136 @@ class PatientTest extends TestCase
 
         $response->assertRedirect(route('login'));
     }
+
+    public function test_the_patient_list_is_paginated(): void
+    {
+        $this->actingUser();
+        Patient::factory()->count(30)->create();
+
+        $this->get(route('patients.index'))->assertInertia(fn ($page) => $page
+            ->component('Patients/Index')
+            ->has('patients.data', 25)
+            ->where('patients.total', 30)
+            ->where('patients.last_page', 2)
+        );
+
+        $this->get(route('patients.index', ['page' => 2]))
+            ->assertInertia(fn ($page) => $page->has('patients.data', 5));
+    }
+
+    public function test_search_matches_name_phone_and_email(): void
+    {
+        $this->actingUser();
+        $target = Patient::factory()->create([
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'phone' => '09171234567',
+            'email' => 'angela@example.com',
+        ]);
+        Patient::factory()->create(['first_name' => 'Rico', 'last_name' => 'Santos']);
+
+        foreach (['Angela', 'reyes', 'Angela Reyes', '0917123', 'angela@'] as $term) {
+            $this->get(route('patients.index', ['search' => $term]))
+                ->assertInertia(fn ($page) => $page
+                    ->has('patients.data', 1)
+                    ->where('patients.data.0.id', $target->id)
+                    ->where('filters.search', $term)
+                );
+        }
+    }
+
+    public function test_search_wildcards_are_escaped(): void
+    {
+        $this->actingUser();
+        Patient::factory()->create(['first_name' => 'Angela', 'last_name' => 'Reyes']);
+
+        // A bare % would otherwise match everything.
+        $this->get(route('patients.index', ['search' => '%']))
+            ->assertInertia(fn ($page) => $page->has('patients.data', 0));
+    }
+
+    /**
+     * The three things a receptionist looks a patient up for. They are
+     * grouped aggregates over the page of results, not a query per row.
+     */
+    public function test_each_row_carries_last_visit_next_visit_and_balance(): void
+    {
+        $user = $this->actingUser();
+        $patient = Patient::factory()->create();
+
+        Appointment::factory()->create([
+            'patient_id' => $patient->id,
+            'status' => 'completed',
+            'start_time' => now()->subDays(10),
+            'end_time' => now()->subDays(10)->addHour(),
+        ]);
+        Appointment::factory()->create([
+            'patient_id' => $patient->id,
+            'status' => 'scheduled',
+            'start_time' => now()->addDays(5),
+            'end_time' => now()->addDays(5)->addHour(),
+        ]);
+
+        $invoice = Invoice::factory()->issued()->create([
+            'patient_id' => $patient->id,
+            'created_by' => $user->id,
+        ]);
+        InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'amount' => 1500]);
+        Payment::factory()->create([
+            'invoice_id' => $invoice->id,
+            'amount' => 500,
+            'created_by' => $user->id,
+        ]);
+
+        $this->get(route('patients.index'))->assertInertia(function ($page) use ($patient) {
+            $summary = $page->toArray()['props']['summaries'][$patient->id];
+
+            $this->assertNotNull($summary['last_visit']);
+            $this->assertNotNull($summary['next_visit']);
+            $this->assertSame(1000, $summary['balance']);
+        });
+    }
+
+    public function test_a_duplicate_email_is_a_form_error_not_a_database_failure(): void
+    {
+        $this->actingUser();
+        Patient::factory()->create(['email' => 'taken@example.com']);
+
+        $this->post(route('patients.store'), [
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'email' => 'taken@example.com',
+        ])->assertSessionHasErrors('email');
+    }
+
+    public function test_a_patient_can_keep_their_own_email_when_updated(): void
+    {
+        $this->actingUser();
+        $patient = Patient::factory()->create(['email' => 'angela@example.com']);
+
+        $this->put(route('patients.update', $patient), [
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'email' => 'angela@example.com',
+        ])->assertSessionHasNoErrors();
+    }
+
+    public function test_a_future_date_of_birth_is_rejected(): void
+    {
+        $this->actingUser();
+
+        $this->post(route('patients.store'), [
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'date_of_birth' => now()->addDay()->toDateString(),
+        ])->assertSessionHasErrors('date_of_birth');
+    }
+
+    public function test_saving_a_patient_flashes_a_confirmation(): void
+    {
+        $this->actingUser();
+
+        $this->post(route('patients.store'), ['first_name' => 'Angela', 'last_name' => 'Reyes'])
+            ->assertSessionHas('success');
+    }
 }

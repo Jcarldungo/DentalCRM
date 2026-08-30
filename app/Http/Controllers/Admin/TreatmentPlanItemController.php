@@ -44,7 +44,7 @@ class TreatmentPlanItemController extends Controller
         $item->created_by = $request->user()->id;
         $item->save();
 
-        return back();
+        return back()->with('success', 'Treatment added to the plan.');
     }
 
     /**
@@ -67,6 +67,6 @@ class TreatmentPlanItemController extends Controller
 
         $treatmentPlanItem->update($validated);
 
-        return back();
+        return back()->with('success', 'Treatment updated.');
     }
 }

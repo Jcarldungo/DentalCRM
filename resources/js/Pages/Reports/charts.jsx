@@ -11,9 +11,10 @@ import {
 } from 'recharts';
 import { formatPeso } from '@/Pages/Patients/format';
 
-const HUE = '#2563eb';
-const GRID = '#e5e7eb';
-const AXIS = '#9ca3af';
+/* Matches brand-600 / slate-200 / slate-400 in tailwind.config.js. */
+const HUE = '#2a54a0';
+const GRID = '#e2e8f0';
+const AXIS = '#94a3b8';
 
 function fmtCount(n) {
     return Number(n).toLocaleString();
@@ -30,7 +31,7 @@ export function TrendChart({ series, bucket, valueFormat }) {
     const hasData = series.some((p) => p.value > 0);
 
     if (!hasData) {
-        return <p className="py-8 text-center text-sm text-gray-400">No data for this period.</p>;
+        return <p className="py-8 text-center text-sm text-slate-400">No data for this period.</p>;
     }
 
     return (
@@ -67,7 +68,7 @@ export function TrendChart({ series, bucket, valueFormat }) {
 export function MiniBars({ rows, valueFormat }) {
     const fmt = valueFormat === 'peso' ? formatPeso : fmtCount;
     if (rows.length === 0 || rows.every((r) => r.value === 0)) {
-        return <p className="py-6 text-center text-sm text-gray-400">No data for this period.</p>;
+        return <p className="py-6 text-center text-sm text-slate-400">No data for this period.</p>;
     }
 
     if (rows.some((r) => r.sub)) {
@@ -77,16 +78,16 @@ export function MiniBars({ rows, valueFormat }) {
                 {rows.map((r, i) => (
                     <li key={i} className="text-sm">
                         <div className="flex items-baseline justify-between">
-                            <span className="text-gray-700">{r.label}</span>
-                            <span className="font-medium text-gray-900">{fmt(r.value)}</span>
+                            <span className="text-slate-700">{r.label}</span>
+                            <span className="font-medium text-slate-900">{fmt(r.value)}</span>
                         </div>
-                        <div className="mt-1 h-1.5 rounded bg-gray-100">
+                        <div className="mt-1 h-1.5 rounded bg-slate-100">
                             <div
-                                className="h-1.5 rounded bg-blue-600"
+                                className="h-1.5 rounded-full bg-brand-600"
                                 style={{ width: `${(r.value / max) * 100}%` }}
                             />
                         </div>
-                        {r.sub && <div className="mt-0.5 text-xs text-gray-400">{r.sub}</div>}
+                        {r.sub && <div className="mt-0.5 text-xs text-slate-400">{r.sub}</div>}
                     </li>
                 ))}
             </ul>
@@ -101,11 +102,11 @@ export function MiniBars({ rows, valueFormat }) {
                     type="category"
                     dataKey="label"
                     width={130}
-                    tick={{ fontSize: 12, fill: '#374151' }}
+                    tick={{ fontSize: 12, fill: '#334155' }}
                     tickLine={false}
                     axisLine={false}
                 />
-                <Tooltip formatter={(v) => [fmt(v), 'Total']} cursor={{ fill: '#f3f4f6' }} />
+                <Tooltip formatter={(v) => [fmt(v), 'Total']} cursor={{ fill: '#f1f5f9' }} />
                 <Bar dataKey="value" fill={HUE} radius={[0, 4, 4, 0]} barSize={18} />
             </BarChart>
         </ResponsiveContainer>

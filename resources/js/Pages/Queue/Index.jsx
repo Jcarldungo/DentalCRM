@@ -1,202 +1,350 @@
-import { useEffect, useRef, useState } from 'react';
-import { Head, router, useForm } from '@inertiajs/react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import { SelectField } from '@/Components/UI/Field';
+import Modal from '@/Components/UI/Modal';
+import { PageContainer, PageHeader } from '@/Components/UI/Page';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { CheckCircle2, Clock, LogIn, Play, UserPlus, UserX } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { formatTime } from '../Patients/format';
 
 const TYPES = ['checkup', 'cleaning', 'procedure', 'other'];
 const POLL_INTERVAL_MS = 15000;
 const BOARD_PROPS = ['todaysSchedule', 'waiting', 'nowServing', 'completed'];
 
-function formatTime(iso) {
-    return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+/**
+ * Columns, in the order a visit moves through them. `emphasis` marks the
+ * one column a front-desk member is actually watching: the board used to
+ * give all four identical weight, so "who is in the chair right now" —
+ * the single question the queue exists to answer — took as long to find
+ * as "who finished an hour ago".
+ */
+const COLUMNS = [
+    {
+        key: 'todaysSchedule',
+        title: 'Expected',
+        hint: 'Scheduled, not yet arrived',
+        accent: 'bg-slate-400',
+    },
+    {
+        key: 'waiting',
+        title: 'Waiting',
+        hint: 'Checked in',
+        accent: 'bg-violet-500',
+        showWait: true,
+    },
+    {
+        key: 'nowServing',
+        title: 'Now serving',
+        hint: 'In treatment',
+        accent: 'bg-emerald-500',
+        emphasis: true,
+    },
+    {
+        key: 'completed',
+        title: 'Completed',
+        hint: 'Done for today',
+        accent: 'bg-slate-300',
+        muted: true,
+    },
+];
+
+/**
+ * How far past their appointment time this patient is.
+ *
+ * Measured from the scheduled start, not from check-in: there is no
+ * checked_in_at column, and "how late are we running against what this
+ * patient was told" is the number a front desk actually needs. A walk-in
+ * is scheduled at the moment it is created, so this reads correctly for
+ * those too.
+ *
+ * Recomputed on a tick rather than on render, so a board left open on a
+ * front-desk screen keeps counting between the 15-second reloads.
+ */
+function waitedMinutes(startIso, now) {
+    return Math.max(0, Math.round((now - new Date(startIso)) / 60000));
 }
 
-function Card({ appointment, children }) {
+function formatWait(minutes) {
+    if (minutes < 60) return `${minutes}m`;
+
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+
+    return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+function WaitChip({ minutes }) {
+    const late = minutes >= 15;
+
     return (
-        <div className="rounded border bg-white p-3 text-sm shadow-sm">
-            <div className="font-medium">{appointment.patient_name}</div>
-            <div className="text-gray-500">
-                {formatTime(appointment.start_time)} · {appointment.type} · {appointment.provider_name}
+        <span
+            title={`${formatWait(minutes)} past their appointment time`}
+            className={`tabular inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                late ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+            }`}
+        >
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            <span className="sr-only">Waiting </span>
+            {formatWait(minutes)}
+            <span className="sr-only"> past their appointment time</span>
+        </span>
+    );
+}
+
+function QueueCard({ appointment, column, now, children }) {
+    return (
+        <Card
+            as="li"
+            className={`p-3 transition-colors ${column.muted ? 'bg-slate-50' : ''} ${
+                column.emphasis ? 'border-emerald-200 bg-emerald-50/40' : ''
+            }`}
+        >
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                    <Link
+                        href={route('patients.show', appointment.patient_id)}
+                        className={`truncate text-sm font-semibold hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                            column.muted ? 'text-slate-500' : 'text-slate-900'
+                        }`}
+                    >
+                        {appointment.patient_name}
+                    </Link>
+                    <p className="tabular mt-0.5 truncate text-xs text-slate-500">
+                        {formatTime(appointment.start_time)} · {appointment.type ?? '—'}
+                        {appointment.provider_name && ` · ${appointment.provider_name}`}
+                    </p>
+                </div>
+                {column.showWait && <WaitChip minutes={waitedMinutes(appointment.start_time, now)} />}
             </div>
-            {children && <div className="mt-2 flex gap-2">{children}</div>}
-        </div>
+
+            {children && <div className="mt-2.5 flex flex-wrap gap-1.5">{children}</div>}
+        </Card>
     );
 }
 
-function ActionButton({ onClick, children, variant = 'primary' }) {
-    const className =
-        variant === 'primary'
-            ? 'rounded bg-gray-900 px-2 py-1 text-xs text-white'
-            : 'rounded border px-2 py-1 text-xs text-gray-700';
+function Column({ column, appointments, now, children }) {
     return (
-        <button type="button" onClick={onClick} className={className}>
-            {children}
-        </button>
-    );
-}
-
-function Column({ title, count, children }) {
-    return (
-        <div className="flex-1 min-w-[16rem]">
-            <h3 className="mb-2 flex items-center gap-2 font-semibold">
-                {title}
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                    {count}
+        <section
+            className={`flex min-w-0 flex-col rounded-xl ${
+                column.emphasis ? 'bg-emerald-50/50 p-2 ring-1 ring-emerald-200' : ''
+            }`}
+            aria-label={column.title}
+        >
+            <header className="mb-2.5 flex items-center gap-2 px-1">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${column.accent}`} aria-hidden="true" />
+                <h2 className="text-sm font-semibold text-slate-900">{column.title}</h2>
+                <span className="tabular ms-auto rounded-full bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                    {appointments.length}
                 </span>
-            </h3>
-            <div className="space-y-2">{children}</div>
-        </div>
+            </header>
+
+            {appointments.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
+                    {column.hint}
+                </p>
+            ) : (
+                <ul className="space-y-2">{children}</ul>
+            )}
+        </section>
     );
 }
 
 export default function Index({ patients, providers, todaysSchedule, waiting, nowServing, completed }) {
-    const [showWalkInModal, setShowWalkInModal] = useState(false);
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const [showWalkIn, setShowWalkIn] = useState(false);
+    const [now, setNow] = useState(() => Date.now());
+    const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
         patient_id: '',
         provider_id: '',
         type: 'checkup',
     });
 
+    const boards = { todaysSchedule, waiting, nowServing, completed };
     const pollRef = useRef(null);
-    useEffect(() => {
-        pollRef.current = setInterval(() => {
-            router.reload({ only: BOARD_PROPS });
-        }, POLL_INTERVAL_MS);
 
-        return () => clearInterval(pollRef.current);
+    useEffect(() => {
+        // Polling pauses while the tab is hidden: a board left open
+        // overnight on a front-desk terminal otherwise issues ~5,700
+        // requests before anyone touches it again.
+        function tick() {
+            if (document.visibilityState === 'visible') {
+                router.reload({ only: BOARD_PROPS });
+            }
+            setNow(Date.now());
+        }
+
+        pollRef.current = setInterval(tick, POLL_INTERVAL_MS);
+        document.addEventListener('visibilitychange', tick);
+
+        return () => {
+            clearInterval(pollRef.current);
+            document.removeEventListener('visibilitychange', tick);
+        };
     }, []);
 
     function setStatus(id, status) {
         router.patch(route('appointments.update', id), { status }, { preserveScroll: true });
     }
 
-    function submitWalkIn(e) {
-        e.preventDefault();
+    function submitWalkIn(event) {
+        event.preventDefault();
         post(route('queue.walkins.store'), {
             preserveScroll: true,
             onSuccess: () => {
                 reset();
-                setShowWalkInModal(false);
+                setShowWalkIn(false);
             },
         });
     }
 
+    const total = todaysSchedule.length + waiting.length + nowServing.length + completed.length;
+
     return (
         <AuthenticatedLayout
-            header={
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Queue</h2>
-                    <button
-                        type="button"
-                        onClick={() => setShowWalkInModal(true)}
-                        className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white"
-                    >
-                        Add Walk-in
-                    </button>
-                </div>
+            title="Queue"
+            actions={
+                <Button size="sm" icon={UserPlus} onClick={() => { clearErrors(); setShowWalkIn(true); }}>
+                    Walk-in
+                </Button>
             }
         >
             <Head title="Queue" />
 
-            <div className="py-8 max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div className="flex flex-wrap gap-6">
-                    <Column title="Today's Schedule" count={todaysSchedule.length}>
-                        {todaysSchedule.map((appointment) => (
-                            <Card key={appointment.id} appointment={appointment}>
-                                <ActionButton onClick={() => setStatus(appointment.id, 'checked_in')}>
-                                    Check In
-                                </ActionButton>
-                                <ActionButton variant="secondary" onClick={() => setStatus(appointment.id, 'no_show')}>
-                                    No-show
-                                </ActionButton>
-                            </Card>
-                        ))}
-                    </Column>
+            <PageContainer>
+                <PageHeader
+                    title="Today's queue"
+                    description={
+                        total === 0
+                            ? 'Nothing on the board today.'
+                            : `${total} appointment${total === 1 ? '' : 's'} today · updates every 15 seconds`
+                    }
+                    actions={
+                        <Button
+                            icon={UserPlus}
+                            onClick={() => { clearErrors(); setShowWalkIn(true); }}
+                            className="hidden lg:inline-flex"
+                        >
+                            Add walk-in
+                        </Button>
+                    }
+                />
 
-                    <Column title="Waiting" count={waiting.length}>
-                        {waiting.map((appointment) => (
-                            <Card key={appointment.id} appointment={appointment}>
-                                <ActionButton onClick={() => setStatus(appointment.id, 'in_treatment')}>
-                                    Start Treatment
-                                </ActionButton>
-                            </Card>
-                        ))}
-                    </Column>
-
-                    <Column title="Now Serving" count={nowServing.length}>
-                        {nowServing.map((appointment) => (
-                            <Card key={appointment.id} appointment={appointment}>
-                                <ActionButton onClick={() => setStatus(appointment.id, 'completed')}>
-                                    Complete
-                                </ActionButton>
-                            </Card>
-                        ))}
-                    </Column>
-
-                    <Column title="Completed" count={completed.length}>
-                        {completed.map((appointment) => (
-                            <Card key={appointment.id} appointment={appointment} />
-                        ))}
-                    </Column>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {COLUMNS.map((column) => (
+                        <Column key={column.key} column={column} appointments={boards[column.key]} now={now}>
+                            {boards[column.key].map((appointment) => (
+                                <QueueCard key={appointment.id} appointment={appointment} column={column} now={now}>
+                                    {column.key === 'todaysSchedule' && (
+                                        <>
+                                            <Button
+                                                size="xs"
+                                                icon={LogIn}
+                                                onClick={() => setStatus(appointment.id, 'checked_in')}
+                                            >
+                                                Check in
+                                            </Button>
+                                            <Button
+                                                size="xs"
+                                                variant="ghost"
+                                                icon={UserX}
+                                                onClick={() => setStatus(appointment.id, 'no_show')}
+                                            >
+                                                No-show
+                                            </Button>
+                                        </>
+                                    )}
+                                    {column.key === 'waiting' && (
+                                        <Button
+                                            size="xs"
+                                            icon={Play}
+                                            onClick={() => setStatus(appointment.id, 'in_treatment')}
+                                        >
+                                            Start treatment
+                                        </Button>
+                                    )}
+                                    {column.key === 'nowServing' && (
+                                        <Button
+                                            size="xs"
+                                            icon={CheckCircle2}
+                                            onClick={() => setStatus(appointment.id, 'completed')}
+                                        >
+                                            Complete
+                                        </Button>
+                                    )}
+                                </QueueCard>
+                            ))}
+                        </Column>
+                    ))}
                 </div>
-            </div>
+            </PageContainer>
 
-            {showWalkInModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-                    <form onSubmit={submitWalkIn} className="bg-white rounded p-6 w-full max-w-sm space-y-4">
-                        <h3 className="font-semibold">Add walk-in</h3>
+            <Modal
+                as="form"
+                onSubmit={submitWalkIn}
+                show={showWalkIn}
+                onClose={() => setShowWalkIn(false)}
+                closeable={!processing}
+                title="Add a walk-in"
+                description="Lands straight in Waiting as a 30-minute block starting now."
+                width="md"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowWalkIn(false)} disabled={processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={processing}>
+                            {processing ? 'Adding…' : 'Add to queue'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <SelectField
+                        label="Patient"
+                        required
+                        value={data.patient_id}
+                        onChange={(e) => setData('patient_id', e.target.value)}
+                        error={errors.patient_id}
+                        hint="Walk-ins must already have a patient record."
+                    >
+                        <option value="">Select a patient</option>
+                        {patients.map((patient) => (
+                            <option key={patient.id} value={patient.id}>
+                                {patient.last_name}, {patient.first_name}
+                            </option>
+                        ))}
+                    </SelectField>
 
-                        <div>
-                            <label className="block text-sm mb-1">Patient</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={data.patient_id}
-                                onChange={(e) => setData('patient_id', e.target.value)}
-                            >
-                                <option value="">Select a patient</option>
-                                {patients.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
-                                ))}
-                            </select>
-                            {errors.patient_id && <p className="text-sm text-red-600">{errors.patient_id}</p>}
-                        </div>
+                    <SelectField
+                        label="Provider"
+                        required
+                        value={data.provider_id}
+                        onChange={(e) => setData('provider_id', e.target.value)}
+                        error={errors.provider_id}
+                    >
+                        <option value="">Select a provider</option>
+                        {providers.map((provider) => (
+                            <option key={provider.id} value={provider.id}>
+                                {provider.name}
+                            </option>
+                        ))}
+                    </SelectField>
 
-                        <div>
-                            <label className="block text-sm mb-1">Provider</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={data.provider_id}
-                                onChange={(e) => setData('provider_id', e.target.value)}
-                            >
-                                <option value="">Select a provider</option>
-                                {providers.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                            {errors.provider_id && <p className="text-sm text-red-600">{errors.provider_id}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Type</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={data.type}
-                                onChange={(e) => setData('type', e.target.value)}
-                            >
-                                {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowWalkInModal(false)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Add to queue
-                            </button>
-                        </div>
-                    </form>
+                    <SelectField
+                        label="Type"
+                        value={data.type}
+                        onChange={(e) => setData('type', e.target.value)}
+                        error={errors.type}
+                    >
+                        {TYPES.map((type) => (
+                            <option key={type} value={type}>
+                                {type}
+                            </option>
+                        ))}
+                    </SelectField>
                 </div>
-            )}
+            </Modal>
         </AuthenticatedLayout>
     );
 }

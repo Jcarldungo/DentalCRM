@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\DentalRecord;
 use App\Models\Invoice;
 use App\Models\Patient;
@@ -18,17 +19,128 @@ use Inertia\Response;
 
 class PatientController extends Controller
 {
-    public function index(): Response
+    /**
+     * The patient list, searched and paginated in the database.
+     *
+     * This used to load every patient row and hand the whole set to the
+     * page with no search — fine for a demo, useless for a clinic with
+     * four thousand of them, which is the first list that stops working
+     * as this is sold.
+     *
+     * Each row carries the three things a receptionist looks a patient up
+     * for: when they were last seen, when they are next due in, and what
+     * they owe. All three are aggregates on the page of results, not
+     * per-row queries.
+     */
+    public function index(Request $request): Response
     {
-        return Inertia::render('Patients/Index', [
-            'patients' => Patient::orderBy('last_name')->orderBy('first_name')->get(),
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
         ]);
+        $search = trim($validated['search'] ?? '');
+
+        $patients = Patient::query()
+            ->when($search !== '', function ($query) use ($search) {
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
+
+                $query->where(function ($scoped) use ($like) {
+                    $scoped->where('first_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('phone', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhereRaw("concat(first_name, ' ', last_name) like ?", [$like]);
+                });
+            })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->paginate(25)
+            ->withQueryString();
+
+        return Inertia::render('Patients/Index', [
+            'patients' => $patients->through(fn (Patient $patient) => [
+                'id' => $patient->id,
+                'first_name' => $patient->first_name,
+                'last_name' => $patient->last_name,
+                'full_name' => $patient->full_name,
+                'phone' => $patient->phone,
+                'email' => $patient->email,
+                'date_of_birth' => $patient->date_of_birth?->toDateString(),
+                'emergency_contact_name' => $patient->emergency_contact_name,
+                'emergency_contact_phone' => $patient->emergency_contact_phone,
+                'notes' => $patient->notes,
+                'recall_interval_months' => $patient->recall_interval_months,
+            ]),
+            'summaries' => $this->summariesFor($patients->getCollection()),
+            'filters' => ['search' => $search],
+        ]);
+    }
+
+    /**
+     * Last visit, next appointment, and outstanding balance for the
+     * patients on this page — three grouped queries rather than three per
+     * row.
+     *
+     * @param  \Illuminate\Support\Collection<int, Patient>  $patients
+     * @return array<int, array<string, mixed>>
+     */
+    protected function summariesFor(\Illuminate\Support\Collection $patients): array
+    {
+        $ids = $patients->pluck('id')->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $lastVisit = Appointment::whereIn('patient_id', $ids)
+            ->where('status', 'completed')
+            ->selectRaw('patient_id, max(start_time) as at')
+            ->groupBy('patient_id')
+            ->pluck('at', 'patient_id');
+
+        $nextVisit = Appointment::whereIn('patient_id', $ids)
+            ->whereIn('status', ['scheduled', 'checked_in', 'in_treatment'])
+            ->where('start_time', '>=', now())
+            ->selectRaw('patient_id, min(start_time) as at')
+            ->groupBy('patient_id')
+            ->pluck('at', 'patient_id');
+
+        $balances = Invoice::whereIn('patient_id', $ids)
+            ->where('status', 'issued')
+            ->with(['items', 'payments'])
+            ->get()
+            ->groupBy('patient_id')
+            ->map(fn ($invoices) => round($invoices->sum(fn (Invoice $invoice) => max($invoice->balance(), 0)), 2));
+
+        return collect($ids)->mapWithKeys(fn (int $id) => [$id => [
+            'last_visit' => $lastVisit[$id] ?? null,
+            'next_visit' => $nextVisit[$id] ?? null,
+            'balance' => (float) ($balances[$id] ?? 0),
+        ]])->all();
     }
 
     public function show(Patient $patient): Response
     {
         return Inertia::render('Patients/Show', [
             'patient' => $patient,
+            // The patient header. Everything here is already loaded or
+            // derived below except the next appointment; it exists so the
+            // page opens with who this is and what state they are in,
+            // rather than a six-field definition list.
+            'summary' => [
+                'age' => $patient->date_of_birth
+                    ? (int) $patient->date_of_birth->diffInYears(now())
+                    : null,
+                'next_appointment' => $patient->appointments()
+                    ->with('provider')
+                    ->whereIn('status', ['scheduled', 'checked_in', 'in_treatment'])
+                    ->where('start_time', '>=', now())
+                    ->orderBy('start_time')
+                    ->first()
+                    ?->only(['id', 'start_time', 'type', 'status']),
+                'last_visit' => $patient->appointments()
+                    ->where('status', 'completed')
+                    ->max('start_time'),
+            ],
             'dentalRecords' => $patient->dentalRecords()
                 ->with(['provider', 'appointment', 'creator'])
                 ->get()
@@ -105,7 +217,20 @@ class PatientController extends Controller
                     'is_paid' => $invoice->isPaid(),
                     'created_at' => $invoice->created_at->toIso8601String(),
                 ]),
-            'providers' => Provider::orderBy('name')->get(['id', 'name']),
+            // The billing tab used to re-declare the billable status set
+            // client-side; it receives the server's list instead, so
+            // TreatmentPlanItem::BILLABLE_STATUSES is the only definition.
+            'billableTreatmentItems' => $patient->treatmentPlanItems()
+                ->whereIn('status', TreatmentPlanItem::BILLABLE_STATUSES)
+                ->orderBy('id')
+                ->get()
+                ->map(fn (TreatmentPlanItem $item) => [
+                    'id' => $item->id,
+                    'label' => $item->treatment.($item->tooth_number ? ' · tooth '.$item->tooth_number : ''),
+                    'treatment' => $item->treatment,
+                    'estimated_cost' => (float) $item->estimated_cost,
+                ])->values(),
+            'providers' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
             'appointments' => $patient->appointments()
                 ->orderByDesc('start_time')
                 ->get(['id', 'start_time', 'type']),
@@ -116,9 +241,9 @@ class PatientController extends Controller
     {
         $validated = $this->validated($request);
 
-        Patient::create($validated);
+        $patient = Patient::create($validated);
 
-        return back();
+        return back()->with('success', "{$patient->full_name} was added.");
     }
 
     public function update(Request $request, Patient $patient): RedirectResponse
@@ -127,7 +252,7 @@ class PatientController extends Controller
 
         $patient->update($validated);
 
-        return back();
+        return back()->with('success', 'Patient details saved.');
     }
 
     /**
@@ -147,9 +272,10 @@ class PatientController extends Controller
             ]);
         }
 
+        $name = $patient->full_name;
         $patient->delete();
 
-        return back();
+        return back()->with('success', "{$name} was removed.");
     }
 
     protected function validated(Request $request, ?Patient $patient = null): array

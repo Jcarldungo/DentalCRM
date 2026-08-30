@@ -1,24 +1,17 @@
-import { Head, Link, router } from '@inertiajs/react';
+import Button from '@/Components/UI/Button';
+import Card from '@/Components/UI/Card';
+import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { appointmentStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-
-const STATUS_BADGE = {
-    scheduled: 'bg-gray-100 text-gray-700 border-gray-300',
-    checked_in: 'bg-blue-100 text-blue-800 border-blue-300',
-    in_treatment: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    completed: 'bg-green-100 text-green-800 border-green-300',
-};
-
-function formatTimeRange(startIso, endIso) {
-    const opts = { hour: 'numeric', minute: '2-digit' };
-    const start = new Date(startIso).toLocaleTimeString(undefined, opts);
-    if (!endIso) return start;
-    const end = new Date(endIso).toLocaleTimeString(undefined, opts);
-    return `${start}–${end}`;
-}
+import { Head, Link, router } from '@inertiajs/react';
+import { CalendarOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatTime } from '../Patients/format';
 
 function formatLongDate(ymd) {
-    // ymd is 'YYYY-MM-DD'; parse as local, not UTC
+    // ymd is 'YYYY-MM-DD'; parse as local, not UTC.
     const [y, m, d] = ymd.split('-').map(Number);
+
     return new Date(y, m - 1, d).toLocaleDateString(undefined, {
         weekday: 'long',
         year: 'numeric',
@@ -29,20 +22,20 @@ function formatLongDate(ymd) {
 
 function shiftDate(ymd, days) {
     const [y, m, d] = ymd.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() + days);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+
+    return toYmd(date);
 }
 
-function todayYmd() {
-    const dt = new Date();
+function toYmd(date) {
     const pad = (n) => String(n).padStart(2, '0');
-    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function pluralise(n, word) {
-    return `${n} ${word}${n === 1 ? '' : 's'}`;
+function pluralise(count, word) {
+    return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
 export default function Index({ providers, selectedProviderId, date, appointments }) {
@@ -55,99 +48,156 @@ export default function Index({ providers, selectedProviderId, date, appointment
     }
 
     const providerLabel = selectedProviderId
-        ? providers.find((p) => p.id === selectedProviderId)?.name ?? 'that provider'
+        ? (providers.find((provider) => provider.id === selectedProviderId)?.name ?? 'that provider')
         : 'all providers';
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Workspace</h2>}>
+        <AuthenticatedLayout title="Workspace">
             <Head title="Workspace" />
 
-            <div className="py-8 max-w-4xl mx-auto sm:px-6 lg:px-8">
-                <div className="mb-4 flex flex-wrap items-center gap-3">
+            <PageContainer>
+                <PageHeader
+                    title="Workspace"
+                    description={`${formatLongDate(date)} · ${pluralise(appointments.length, 'appointment')}`}
+                />
+
+                <div className="mb-5 flex flex-wrap items-center gap-2">
                     <select
-                        aria-label="Provider"
-                        className="border rounded px-3 py-2 text-sm"
+                        aria-label="Filter by provider"
+                        className="h-10 rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         value={selectedProviderId ?? ''}
                         onChange={(e) => navigate({ provider_id: e.target.value || undefined })}
                     >
                         <option value="">All providers</option>
                         {selectedProviderId != null &&
-                            !providers.some((p) => p.id === selectedProviderId) && (
-                            <option value={selectedProviderId}>Inactive provider</option>
-                        )}
-                        {providers.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
+                            !providers.some((provider) => provider.id === selectedProviderId) && (
+                                <option value={selectedProviderId}>Inactive provider</option>
+                            )}
+                        {providers.map((provider) => (
+                            <option key={provider.id} value={provider.id}>
+                                {provider.name}
+                            </option>
                         ))}
                     </select>
 
                     <input
                         type="date"
                         aria-label="Date"
-                        className="border rounded px-3 py-2 text-sm"
+                        className="h-10 rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         value={date}
                         onChange={(e) => e.target.value && navigate({ date: e.target.value })}
                     />
 
-                    <div className="flex gap-1">
-                        <button type="button" onClick={() => navigate({ date: shiftDate(date, -1) })} className="rounded border px-2 py-2 text-sm">
-                            ‹ Prev
-                        </button>
-                        <button type="button" onClick={() => navigate({ date: todayYmd() })} className="rounded border px-3 py-2 text-sm">
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="secondary"
+                            size="md"
+                            aria-label="Previous day"
+                            onClick={() => navigate({ date: shiftDate(date, -1) })}
+                            className="px-2.5"
+                        >
+                            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                        <Button variant="secondary" onClick={() => navigate({ date: toYmd(new Date()) })}>
                             Today
-                        </button>
-                        <button type="button" onClick={() => navigate({ date: shiftDate(date, 1) })} className="rounded border px-2 py-2 text-sm">
-                            Next ›
-                        </button>
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            size="md"
+                            aria-label="Next day"
+                            onClick={() => navigate({ date: shiftDate(date, 1) })}
+                            className="px-2.5"
+                        >
+                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                        </Button>
                     </div>
                 </div>
 
-                <h3 className="mb-3 text-sm font-semibold text-gray-500">{formatLongDate(date)}</h3>
+                {appointments.length === 0 ? (
+                    <Card>
+                        <EmptyState
+                            icon={CalendarOff}
+                            title="Nothing scheduled"
+                            description={`No appointments for ${providerLabel} on ${formatLongDate(date)}.`}
+                        />
+                    </Card>
+                ) : (
+                    <ol className="space-y-2">
+                        {appointments.map((appointment) => (
+                            <Card as="li" key={appointment.id} className="overflow-hidden">
+                                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                                    <div className="tabular w-full shrink-0 border-slate-200 sm:w-28 sm:border-e sm:pe-4">
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {formatTime(appointment.start_time)}
+                                        </p>
+                                        {appointment.end_time && (
+                                            <p className="text-xs text-slate-500">
+                                                until {formatTime(appointment.end_time)}
+                                            </p>
+                                        )}
+                                    </div>
 
-                <div className="space-y-2">
-                    {appointments.map((appt) => (
-                        <div key={appt.id} className="rounded border bg-white p-4 text-sm shadow-sm">
-                            <div className="flex flex-wrap items-center gap-2 text-gray-500">
-                                <span className="font-medium text-gray-900">{formatTimeRange(appt.start_time, appt.end_time)}</span>
-                                <span className={`inline-block rounded border px-2 py-0.5 text-xs ${STATUS_BADGE[appt.status] ?? 'bg-gray-100 text-gray-700 border-gray-300'}`}>
-                                    {appt.status.replace('_', ' ')}
-                                </span>
-                                {appt.type && <span>{appt.type}</span>}
-                                {appt.provider_name && <span>· {appt.provider_name}</span>}
-                            </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Link
+                                                href={route('patients.show', appointment.patient_id)}
+                                                className="text-sm font-semibold text-slate-900 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                            >
+                                                {appointment.patient_name}
+                                            </Link>
+                                            {appointment.patient_age !== null && (
+                                                <span className="tabular text-xs text-slate-500">
+                                                    {appointment.patient_age} yrs
+                                                </span>
+                                            )}
+                                            <StatusBadge status={appointmentStatus(appointment.status)} />
+                                        </div>
 
-                            <div className="mt-1">
-                                <Link href={`/patients/${appt.patient_id}`} className="font-medium text-blue-600">
-                                    {appt.patient_name}
-                                </Link>
-                                {appt.patient_age !== null && <span className="text-gray-500"> ({appt.patient_age})</span>}
-                            </div>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            {appointment.type ?? '—'}
+                                            {appointment.provider_name && ` · ${appointment.provider_name}`}
+                                        </p>
 
-                            {(appt.open_treatment_count > 0 || appt.active_prescription_count > 0) && (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {appt.open_treatment_count > 0 && (
-                                        <span className="inline-block rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                                            {pluralise(appt.open_treatment_count, 'open treatment')}
-                                        </span>
-                                    )}
-                                    {appt.active_prescription_count > 0 && (
-                                        <span className="inline-block rounded border border-blue-300 bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-                                            {pluralise(appt.active_prescription_count, 'active Rx')}
-                                        </span>
-                                    )}
+                                        {(appointment.open_treatment_count > 0 ||
+                                            appointment.active_prescription_count > 0) && (
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {appointment.open_treatment_count > 0 && (
+                                                    <StatusBadge
+                                                        status={{
+                                                            label: pluralise(
+                                                                appointment.open_treatment_count,
+                                                                'open treatment',
+                                                            ),
+                                                            tone: 'warning',
+                                                        }}
+                                                    />
+                                                )}
+                                                {appointment.active_prescription_count > 0 && (
+                                                    <StatusBadge
+                                                        status={{
+                                                            label: pluralise(
+                                                                appointment.active_prescription_count,
+                                                                'active Rx',
+                                                            ),
+                                                            tone: 'info',
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {appointment.notes && (
+                                            <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700">
+                                                {appointment.notes}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-
-                            {appt.notes && <p className="mt-2 text-gray-600">Notes: {appt.notes}</p>}
-                        </div>
-                    ))}
-
-                    {appointments.length === 0 && (
-                        <div className="rounded border bg-white p-4 text-sm text-gray-500 shadow-sm">
-                            No appointments for {providerLabel} on {formatLongDate(date)}.
-                        </div>
-                    )}
-                </div>
-            </div>
+                            </Card>
+                        ))}
+                    </ol>
+                )}
+            </PageContainer>
         </AuthenticatedLayout>
     );
 }

@@ -94,7 +94,7 @@ export default function PublicLayout({ children }) {
             <main className="flex-1">{children}</main>
 
             <footer className="border-t border-stone-200 bg-stone-50">
-                <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-4 lg:px-8">
+                <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
                     <div>
                         <p className="text-lg font-semibold text-stone-900">{CLINIC.name}</p>
                         <p className="mt-2 text-sm leading-relaxed text-stone-600">
@@ -131,15 +131,17 @@ export default function PublicLayout({ children }) {
                         <ul className="mt-3 space-y-2 text-sm text-stone-600">
                             <li className="flex items-start gap-2">
                                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
-                                {CLINIC.address}
+                                <span className="min-w-0">{CLINIC.address}</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <Phone className="h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
-                                {CLINIC.phone}
+                                <span className="min-w-0 break-words">{CLINIC.phone}</span>
                             </li>
-                            <li className="flex items-center gap-2">
-                                <Mail className="h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
-                                {CLINIC.email}
+                            <li className="flex items-start gap-2">
+                                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+                                {/* An email address has no break opportunities of
+                                    its own, so it needs an explicit one. */}
+                                <span className="min-w-0 break-words">{CLINIC.email}</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <Clock className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />

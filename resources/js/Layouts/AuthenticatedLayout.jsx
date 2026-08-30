@@ -1,284 +1,278 @@
-import ApplicationLogo from '@/Components/ApplicationLogo';
-import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import ClinicMark from '@/Components/UI/ClinicMark';
+import Toast from '@/Components/UI/Toast';
+import { Link, router, usePage } from '@inertiajs/react';
+import {
+    Menu as MenuIcon,
+    X,
+    LayoutDashboard,
+    ListChecks,
+    Stethoscope,
+    Users,
+    CalendarDays,
+    Inbox,
+    Receipt,
+    BarChart3,
+    Boxes,
+    UserCog,
+    LogOut,
+    UserRound,
+    ChevronDown,
+} from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
 
-export default function AuthenticatedLayout({ header, children }) {
-    const user = usePage().props.auth.user;
+/**
+ * The staff application shell.
+ *
+ * A sidebar rather than a top bar: ten destinations in a horizontal
+ * `space-x-8` row forced the document to 1207px wide, so every staff page
+ * overflowed horizontally at 768px — a chairside tablet had to be panned
+ * sideways to read a patient record. Grouping them vertically removes
+ * that at the root instead of page by page, and leaves room for icons and
+ * for the section labels that make ten destinations scannable.
+ *
+ * Below `lg` the same nav becomes an off-canvas drawer; there is one
+ * markup path, not two.
+ */
+const NAV_GROUPS = [
+    {
+        label: 'Today',
+        items: [
+            { name: 'Dashboard', route: 'dashboard', match: 'dashboard', icon: LayoutDashboard },
+            { name: 'Queue', route: 'queue.index', match: 'queue.*', icon: ListChecks },
+            { name: 'Workspace', route: 'workspace.index', match: 'workspace.*', icon: Stethoscope },
+        ],
+    },
+    {
+        label: 'Records',
+        items: [
+            { name: 'Patients', route: 'patients.index', match: 'patients.*', icon: Users },
+            { name: 'Appointments', route: 'appointments.index', match: 'appointments.index', icon: CalendarDays },
+            { name: 'Inquiries', route: 'inquiries.index', match: 'inquiries.index', icon: Inbox },
+        ],
+    },
+    {
+        label: 'Practice',
+        items: [
+            { name: 'Billing', route: 'invoices.index', match: 'invoices.*', icon: Receipt },
+            { name: 'Reports', route: 'reports.index', match: 'reports.*', icon: BarChart3 },
+            { name: 'Inventory', route: 'inventory.index', match: 'inventory.*', icon: Boxes },
+            { name: 'Providers', route: 'providers.index', match: 'providers.*', icon: UserCog },
+        ],
+    },
+];
 
-    const [showingNavigationDropdown, setShowingNavigationDropdown] =
-        useState(false);
+function NavItem({ item, badge, onNavigate }) {
+    const active = route().current(item.match);
+    const Icon = item.icon;
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <nav className="border-b border-gray-100 bg-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 justify-between">
-                        <div className="flex">
-                            <div className="flex shrink-0 items-center">
-                                <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
-                                </Link>
-                            </div>
+        <Link
+            href={route(item.route)}
+            onClick={onNavigate}
+            aria-current={active ? 'page' : undefined}
+            className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                active
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+        >
+            <Icon
+                className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600'}`}
+                aria-hidden="true"
+            />
+            <span className="flex-1 truncate">{item.name}</span>
+            {badge > 0 && (
+                <span className="tabular rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                    {badge}
+                </span>
+            )}
+        </Link>
+    );
+}
 
-                            <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                                <NavLink
-                                    href={route('dashboard')}
-                                    active={route().current('dashboard')}
-                                >
-                                    Dashboard
-                                </NavLink>
-                                <NavLink
-                                    href={route('patients.index')}
-                                    active={route().current('patients.index')}
-                                >
-                                    Patients
-                                </NavLink>
-                                <NavLink
-                                    href={route('providers.index')}
-                                    active={route().current('providers.index')}
-                                >
-                                    Providers
-                                </NavLink>
-                                <NavLink
-                                    href={route('appointments.index')}
-                                    active={route().current('appointments.index')}
-                                >
-                                    Appointments
-                                </NavLink>
-                                <NavLink
-                                    href={route('queue.index')}
-                                    active={route().current('queue.index')}
-                                >
-                                    Queue
-                                </NavLink>
-                                <NavLink
-                                    href={route('workspace.index')}
-                                    active={route().current('workspace.index')}
-                                >
-                                    Workspace
-                                </NavLink>
-                                <NavLink
-                                    href={route('invoices.index')}
-                                    active={route().current('invoices.*')}
-                                >
-                                    Billing
-                                </NavLink>
-                                <NavLink
-                                    href={route('reports.index')}
-                                    active={route().current('reports.*')}
-                                >
-                                    Reports
-                                </NavLink>
-                                <NavLink
-                                    href={route('inventory.index')}
-                                    active={route().current('inventory.*')}
-                                >
-                                    Inventory
-                                </NavLink>
-                                <NavLink
-                                    href={route('inquiries.index')}
-                                    active={route().current('inquiries.index')}
-                                >
-                                    Inquiries
-                                </NavLink>
-                            </div>
-                        </div>
-
-                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
-                            <div className="relative ms-3">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                                            >
-                                                {user.name}
-
-                                                <svg
-                                                    className="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
-
-                                    <Dropdown.Content>
-                                        <Dropdown.Link
-                                            href={route('profile.edit')}
-                                        >
-                                            Profile
-                                        </Dropdown.Link>
-                                        <Dropdown.Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                        >
-                                            Log Out
-                                        </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
-                            </div>
-                        </div>
-
-                        <div className="-me-2 flex items-center sm:hidden">
-                            <button
-                                onClick={() =>
-                                    setShowingNavigationDropdown(
-                                        (previousState) => !previousState,
-                                    )
-                                }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
-                            >
-                                <svg
-                                    className="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        className={
-                                            !showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        className={
-                                            showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    className={
-                        (showingNavigationDropdown ? 'block' : 'hidden') +
-                        ' sm:hidden'
-                    }
+function SidebarNav({ clinicName, badges, onNavigate }) {
+    return (
+        <div className="flex h-full flex-col">
+            <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-4">
+                <Link
+                    href={route('dashboard')}
+                    onClick={onNavigate}
+                    className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
-                    <div className="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('patients.index')}
-                            active={route().current('patients.index')}
-                        >
-                            Patients
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('providers.index')}
-                            active={route().current('providers.index')}
-                        >
-                            Providers
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('appointments.index')}
-                            active={route().current('appointments.index')}
-                        >
-                            Appointments
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('queue.index')}
-                            active={route().current('queue.index')}
-                        >
-                            Queue
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('workspace.index')}
-                            active={route().current('workspace.index')}
-                        >
-                            Workspace
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('invoices.index')}
-                            active={route().current('invoices.*')}
-                        >
-                            Billing
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('reports.index')}
-                            active={route().current('reports.*')}
-                        >
-                            Reports
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('inventory.index')}
-                            active={route().current('inventory.*')}
-                        >
-                            Inventory
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            href={route('inquiries.index')}
-                            active={route().current('inquiries.index')}
-                        >
-                            Inquiries
-                        </ResponsiveNavLink>
+                    <ClinicMark name={clinicName} />
+                </Link>
+            </div>
+
+            <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+                {NAV_GROUPS.map((group) => (
+                    <div key={group.label}>
+                        <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                            {group.label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {group.items.map((item) => (
+                                <NavItem
+                                    key={item.route}
+                                    item={item}
+                                    badge={badges?.[item.route]}
+                                    onNavigate={onNavigate}
+                                />
+                            ))}
+                        </div>
                     </div>
+                ))}
+            </nav>
+        </div>
+    );
+}
 
-                    <div className="border-t border-gray-200 pb-1 pt-4">
-                        <div className="px-4">
-                            <div className="text-base font-medium text-gray-800">
-                                {user.name}
-                            </div>
-                            <div className="text-sm font-medium text-gray-500">
-                                {user.email}
-                            </div>
-                        </div>
+function AccountMenu({ user }) {
+    return (
+        <Menu as="div" className="relative">
+            <MenuButton className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+                    {initials(user.name)}
+                </span>
+                <span className="hidden max-w-[10rem] truncate font-medium text-slate-700 sm:block">
+                    {user.name}
+                </span>
+                <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            </MenuButton>
 
-                        <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')}>
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
-                        </div>
+            <Transition
+                as={Fragment}
+                enter="transition ease-out duration-100"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="transition ease-in duration-75"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+            >
+                <MenuItems className="absolute end-0 z-50 mt-1.5 w-60 origin-top-right overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg focus:outline-none">
+                    <div className="border-b border-slate-100 px-4 py-3">
+                        <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+                        <p className="truncate text-xs text-slate-500">{user.email}</p>
+                    </div>
+                    <div className="p-1">
+                        <MenuItem>
+                            {({ focus }) => (
+                                <Link
+                                    href={route('profile.edit')}
+                                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${focus ? 'bg-slate-100 text-slate-900' : 'text-slate-700'}`}
+                                >
+                                    <UserRound className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                                    Profile & password
+                                </Link>
+                            )}
+                        </MenuItem>
+                        <MenuItem>
+                            {({ focus }) => (
+                                <button
+                                    type="button"
+                                    onClick={() => router.post(route('logout'))}
+                                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm ${focus ? 'bg-slate-100 text-slate-900' : 'text-slate-700'}`}
+                                >
+                                    <LogOut className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                                    Log out
+                                </button>
+                            )}
+                        </MenuItem>
+                    </div>
+                </MenuItems>
+            </Transition>
+        </Menu>
+    );
+}
+
+function initials(name) {
+    return String(name ?? '')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('');
+}
+
+export default function AuthenticatedLayout({ title, actions, navBadges, children }) {
+    const { auth, clinic } = usePage().props;
+    const [drawerOpen, setDrawerOpen] = useState(false);
+
+    // A drawer left open across a client-side navigation would cover the
+    // page it just navigated to.
+    useEffect(() => router.on('navigate', () => setDrawerOpen(false)), []);
+
+    return (
+        <div className="min-h-screen bg-slate-50">
+            <a
+                href="#main"
+                className="sr-only z-[70] rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+            >
+                Skip to content
+            </a>
+
+            <Toast />
+
+            {/* Persistent sidebar from lg up. */}
+            <div className="fixed inset-y-0 start-0 z-40 hidden w-64 border-e border-slate-200 bg-white lg:block">
+                <SidebarNav clinicName={clinic.name} badges={navBadges} />
+            </div>
+
+            {/* The same nav as an off-canvas drawer below lg. */}
+            {drawerOpen && (
+                <div className="fixed inset-0 z-50 lg:hidden">
+                    <div
+                        className="fixed inset-0 bg-slate-900/40"
+                        onClick={() => setDrawerOpen(false)}
+                        aria-hidden="true"
+                    />
+                    <div className="fixed inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl">
+                        <button
+                            type="button"
+                            onClick={() => setDrawerOpen(false)}
+                            aria-label="Close navigation"
+                            className="absolute end-3 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                        >
+                            <X className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                        <SidebarNav
+                            clinicName={clinic.name}
+                            badges={navBadges}
+                            onNavigate={() => setDrawerOpen(false)}
+                        />
                     </div>
                 </div>
-            </nav>
-
-            {header && (
-                <header className="bg-white shadow">
-                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                        {header}
-                    </div>
-                </header>
             )}
 
-            <main>{children}</main>
+            <div className="lg:ps-64">
+                <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+                    <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+                        <button
+                            type="button"
+                            onClick={() => setDrawerOpen(true)}
+                            aria-label="Open navigation"
+                            aria-expanded={drawerOpen}
+                            className="-ms-1.5 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 lg:hidden"
+                        >
+                            <MenuIcon className="h-5 w-5" aria-hidden="true" />
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                            {title && (
+                                <p className="truncate text-sm font-semibold text-slate-900 lg:hidden">
+                                    {title}
+                                </p>
+                            )}
+                        </div>
+
+                        {actions && <div className="flex items-center gap-2 lg:hidden">{actions}</div>}
+
+                        <AccountMenu user={auth.user} />
+                    </div>
+                </header>
+
+                <main id="main">{children}</main>
+            </div>
         </div>
     );
 }

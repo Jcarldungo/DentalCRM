@@ -94,7 +94,7 @@ class AppointmentController extends Controller
 
         Appointment::create($validated);
 
-        return back();
+        return back()->with('success', 'Appointment scheduled.');
     }
 
     public function update(Request $request, Appointment $appointment): RedirectResponse

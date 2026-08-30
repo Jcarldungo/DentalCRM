@@ -48,6 +48,13 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            // Clinic identity for the staff shell. The public site keeps
+            // its own CLINIC constant in PublicLayout.jsx (see CLAUDE.md);
+            // this is so the internal app doesn't hardcode a name that
+            // becomes a real customer's the moment one is onboarded.
+            'clinic' => [
+                'name' => config('app.name'),
+            ],
         ];
     }
 }

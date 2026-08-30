@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageContainer, PageHeader } from '@/Components/UI/Page';
 import { formatPeso } from '@/Pages/Patients/format';
 import RangePicker from './RangePicker';
 import { TrendChart, MiniBars } from './charts';
@@ -11,10 +12,12 @@ function pct(n) {
 
 export default function Index({ meta, revenue, appointments, patients }) {
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Reports</h2>}>
+        <AuthenticatedLayout title="Reports">
             <Head title="Reports" />
 
-            <div className="py-6 max-w-5xl mx-auto sm:px-6 lg:px-8">
+            <PageContainer>
+                <PageHeader title="Reports" description={meta.label} />
+
                 <RangePicker meta={meta} />
 
                 <div className="space-y-10">
@@ -116,7 +119,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                         </Card>
                     </Section>
                 </div>
-            </div>
+            </PageContainer>
         </AuthenticatedLayout>
     );
 }

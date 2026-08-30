@@ -1,20 +1,14 @@
-export default function PrimaryButton({
-    className = '',
-    disabled,
-    children,
-    ...props
-}) {
+import Button from '@/Components/UI/Button';
+
+/**
+ * Kept as the name Breeze's auth pages import. It is now a thin alias
+ * over Components/UI/Button so the sign-in screens and the staff app
+ * share one button, rather than the app having two that look different.
+ */
+export default function PrimaryButton({ className = '', disabled, children, ...props }) {
     return (
-        <button
-            {...props}
-            className={
-                `inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition duration-150 ease-in-out hover:bg-gray-700 focus:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 active:bg-gray-900 ${
-                    disabled && 'opacity-25'
-                } ` + className
-            }
-            disabled={disabled}
-        >
+        <Button type="submit" className={className} disabled={disabled} {...props}>
             {children}
-        </button>
+        </Button>
     );
 }

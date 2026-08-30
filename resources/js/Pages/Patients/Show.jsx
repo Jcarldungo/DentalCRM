@@ -1,94 +1,176 @@
-import { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import Button from '@/Components/UI/Button';
+import Card, { CardBody, CardHeader } from '@/Components/UI/Card';
+import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
+import Modal from '@/Components/UI/Modal';
+import { DetailItem, EmptyState, PageContainer, SectionHeading } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import Tabs, { TabPanel } from '@/Components/UI/Tabs';
+import { treatmentPriority, treatmentStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { formatDate, formatDateTime, formatPeso } from './format';
-import PrescriptionsTab from './PrescriptionsTab';
+import { Head, useForm } from '@inertiajs/react';
+import { ClipboardList, FileText, Plus } from 'lucide-react';
+import { useState } from 'react';
 import BillingTab from './BillingTab';
+import DentalChart, { ALL_TEETH } from './DentalChart';
+import PatientHeader from './PatientHeader';
+import PrescriptionsTab from './PrescriptionsTab';
+import { formatDate, formatDateTime, formatPeso } from './format';
 
-const TYPES = ['consultation', 'procedure', 'follow_up', 'other'];
-
-const TOOTH_CONDITIONS = ['healthy', 'caries', 'filling', 'crown', 'missing', 'extraction', 'root_canal', 'implant', 'other'];
-
-const CONDITION_COLORS = {
-    healthy: 'bg-green-100 text-green-800 border-green-300',
-    caries: 'bg-red-100 text-red-800 border-red-300',
-    filling: 'bg-blue-100 text-blue-800 border-blue-300',
-    crown: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    missing: 'bg-gray-200 text-gray-500 border-gray-300',
-    extraction: 'bg-gray-400 text-white border-gray-500',
-    root_canal: 'bg-purple-100 text-purple-800 border-purple-300',
-    implant: 'bg-teal-100 text-teal-800 border-teal-300',
-    other: 'bg-orange-100 text-orange-800 border-orange-300',
-};
-
-const UNMARKED_COLOR = 'bg-white text-gray-400 border-gray-200';
-
-const UPPER_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-const LOWER_TEETH = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17];
-
-function currentConditionFor(toothConditions, toothNumber) {
-    return toothConditions.find((c) => c.tooth_number === toothNumber) ?? null;
-}
-
+const RECORD_TYPES = ['consultation', 'procedure', 'follow_up', 'other'];
+const TOOTH_CONDITIONS = [
+    'healthy',
+    'caries',
+    'filling',
+    'crown',
+    'missing',
+    'extraction',
+    'root_canal',
+    'implant',
+    'other',
+];
 const TREATMENT_PRIORITIES = ['low', 'medium', 'high'];
 const TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress', 'completed', 'cancelled'];
-const ACTIVE_TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress'];
-const ALL_TEETH = [...UPPER_TEETH, ...LOWER_TEETH].sort((a, b) => a - b);
+const OPEN_TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress'];
 
-const PRIORITY_COLORS = {
-    low: 'bg-gray-100 text-gray-700 border-gray-300',
-    medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    high: 'bg-red-100 text-red-800 border-red-300',
-};
+/** The appointment picker's option label, shared by all three clinical forms. */
+function appointmentLabel(appointment) {
+    const when = appointment.start_time ? formatDateTime(appointment.start_time) : 'Unscheduled';
 
-const STATUS_COLORS = {
-    planned: 'bg-gray-100 text-gray-700 border-gray-300',
-    scheduled: 'bg-blue-100 text-blue-800 border-blue-300',
-    in_progress: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    completed: 'bg-green-100 text-green-800 border-green-300',
-    cancelled: 'bg-gray-300 text-gray-600 border-gray-400 line-through',
-};
+    return `${when} — ${appointment.type ?? 'request'}`;
+}
 
-function TreatmentPlanItemCard({ item, onEdit }) {
+function AppointmentPicker({ appointments, value, onChange, error }) {
     return (
-        <div className="bg-white shadow rounded p-4 text-sm">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <div className="font-medium">{item.treatment}</div>
-                    <div className="text-gray-500">
-                        {item.tooth_number ? `Tooth ${item.tooth_number}` : 'Whole mouth'}
-                        {item.provider_name && ` · ${item.provider_name}`}
-                        {item.appointment_start_time && ` · linked to ${formatDateTime(item.appointment_start_time)}`}
-                    </div>
-                </div>
-                <button type="button" onClick={onEdit} className="text-sm text-blue-600 shrink-0">
-                    Edit
-                </button>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="font-medium">{formatPeso(item.estimated_cost)}</span>
-                <span className={`inline-block rounded border px-2 py-0.5 text-xs ${PRIORITY_COLORS[item.priority]}`}>
-                    {item.priority}
-                </span>
-                <span className={`inline-block rounded border px-2 py-0.5 text-xs ${STATUS_COLORS[item.status]}`}>
-                    {item.status.replace('_', ' ')}
-                </span>
-            </div>
-            {item.notes && <p className="mt-2">{item.notes}</p>}
-            <div className="mt-3 text-xs text-gray-400">
-                Logged by {item.creator_name} on {formatDate(item.created_at)}
-            </div>
-        </div>
+        <SelectField label="Linked appointment" value={value} onChange={onChange} error={error}>
+            <option value="">No linked appointment</option>
+            {appointments.map((appointment) => (
+                <option key={appointment.id} value={appointment.id}>
+                    {appointmentLabel(appointment)}
+                </option>
+            ))}
+        </SelectField>
     );
 }
 
-export default function Show({ patient, dentalRecords, toothConditions, treatmentPlanItems, prescriptions, invoices, providers, appointments }) {
+function ProviderPicker({ providers, value, onChange, error, label = 'Provider' }) {
+    return (
+        <SelectField label={label} value={value} onChange={onChange} error={error}>
+            <option value="">No provider</option>
+            {providers.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                </option>
+            ))}
+        </SelectField>
+    );
+}
+
+function RecordCard({ record }) {
+    const sections = [
+        ['Examination', record.examination],
+        ['Diagnosis', record.diagnosis],
+        ['Procedure', record.procedure],
+        ['Notes', record.notes],
+    ].filter(([, value]) => value);
+
+    return (
+        <Card>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={{ label: record.type.replace('_', ' '), tone: 'info' }} />
+                    <span className="tabular text-xs text-slate-500">{formatDate(record.created_at)}</span>
+                </div>
+                <span className="text-xs text-slate-500">
+                    {record.provider_name ?? 'No provider'}
+                    {record.appointment_start_time && ` · ${formatDateTime(record.appointment_start_time)}`}
+                </span>
+            </div>
+
+            <dl className="divide-y divide-slate-100">
+                {sections.map(([label, value]) => (
+                    <div key={label} className="px-4 py-2.5 sm:flex sm:gap-4">
+                        <dt className="w-28 shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500">
+                            {label}
+                        </dt>
+                        <dd className="mt-0.5 text-sm leading-relaxed text-slate-800 sm:mt-0">{value}</dd>
+                    </div>
+                ))}
+            </dl>
+
+            <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">
+                Logged by {record.creator_name}
+            </p>
+        </Card>
+    );
+}
+
+function TreatmentCard({ item, onEdit }) {
+    return (
+        <Card className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-slate-900">{item.treatment}</h4>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                        {item.tooth_number ? `Tooth ${item.tooth_number}` : 'Whole mouth'}
+                        {item.provider_name && ` · ${item.provider_name}`}
+                        {item.appointment_start_time && ` · ${formatDateTime(item.appointment_start_time)}`}
+                    </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                    <span className="tabular text-sm font-semibold text-slate-900">
+                        {formatPeso(item.estimated_cost)}
+                    </span>
+                    <Button variant="secondary" size="sm" onClick={onEdit}>
+                        Edit
+                    </Button>
+                </div>
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <StatusBadge status={treatmentStatus(item.status)} />
+                <StatusBadge status={treatmentPriority(item.priority)}>
+                    {treatmentPriority(item.priority).label} priority
+                </StatusBadge>
+            </div>
+
+            {item.notes && <p className="mt-2.5 text-sm leading-relaxed text-slate-700">{item.notes}</p>}
+
+            <p className="mt-3 border-t border-slate-100 pt-2.5 text-xs text-slate-400">
+                Added by {item.creator_name} on {formatDate(item.created_at)}
+            </p>
+        </Card>
+    );
+}
+
+export default function Show({
+    patient,
+    summary,
+    dentalRecords,
+    toothConditions,
+    treatmentPlanItems,
+    billableTreatmentItems,
+    prescriptions,
+    invoices,
+    providers,
+    appointments,
+}) {
     const [tab, setTab] = useState('overview');
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [showRecordModal, setShowRecordModal] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
+    const [showRecord, setShowRecord] = useState(false);
     const [selectedTooth, setSelectedTooth] = useState(null);
-    const [showTreatmentModal, setShowTreatmentModal] = useState(false);
-    const [editingTreatmentItem, setEditingTreatmentItem] = useState(null);
+    const [showTreatment, setShowTreatment] = useState(false);
+    const [editingTreatment, setEditingTreatment] = useState(null);
+
+    const openTreatments = treatmentPlanItems.filter((item) =>
+        OPEN_TREATMENT_STATUSES.includes(item.status),
+    );
+    const resolvedTreatments = treatmentPlanItems.filter(
+        (item) => !OPEN_TREATMENT_STATUSES.includes(item.status),
+    );
+    const activeRx = prescriptions.filter((rx) => rx.status === 'active');
+    const balance = invoices
+        .filter((invoice) => invoice.status !== 'void')
+        .reduce((sum, invoice) => sum + invoice.balance, 0);
 
     const patientForm = useForm({
         first_name: patient.first_name,
@@ -120,30 +202,6 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
         appointment_id: '',
     });
 
-    function openTooth(toothNumber) {
-        toothForm.reset();
-        toothForm.clearErrors();
-        toothForm.setData({
-            tooth_number: toothNumber,
-            condition: 'healthy',
-            notes: '',
-            provider_id: '',
-            appointment_id: '',
-        });
-        setSelectedTooth(toothNumber);
-    }
-
-    function submitToothCondition(e) {
-        e.preventDefault();
-        toothForm.post(route('tooth-conditions.store', patient.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                toothForm.reset();
-                setSelectedTooth(null);
-            },
-        });
-    }
-
     const treatmentForm = useForm({
         treatment: '',
         tooth_number: '',
@@ -161,21 +219,16 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
         notes: '',
     });
 
-    function openTreatmentModal() {
-        treatmentForm.reset();
-        treatmentForm.clearErrors();
-        setShowTreatmentModal(true);
-    }
-
-    function submitTreatment(e) {
-        e.preventDefault();
-        treatmentForm.post(route('treatment-plan-items.store', patient.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                treatmentForm.reset();
-                setShowTreatmentModal(false);
-            },
+    function openTooth(number) {
+        toothForm.clearErrors();
+        toothForm.setData({
+            tooth_number: number,
+            condition: 'healthy',
+            notes: '',
+            provider_id: '',
+            appointment_id: '',
         });
+        setSelectedTooth(number);
     }
 
     function openTreatmentEdit(item) {
@@ -186,691 +239,654 @@ export default function Show({ patient, dentalRecords, toothConditions, treatmen
             estimated_cost: item.estimated_cost,
             notes: item.notes ?? '',
         });
-        setEditingTreatmentItem(item);
+        setEditingTreatment(item);
     }
 
-    function submitTreatmentEdit(e) {
-        e.preventDefault();
-        treatmentEditForm.patch(route('treatment-plan-items.update', { patient: patient.id, treatmentPlanItem: editingTreatmentItem.id }), {
+    const submit = (form, url, onDone) => (event) => {
+        event.preventDefault();
+        form.post(url, {
             preserveScroll: true,
             onSuccess: () => {
-                treatmentEditForm.reset();
-                setEditingTreatmentItem(null);
+                form.reset();
+                onDone();
             },
         });
-    }
+    };
 
-    function submitPatientEdit(e) {
-        e.preventDefault();
-        patientForm.put(route('patients.update', patient.id), {
-            onSuccess: () => setShowEditModal(false),
-        });
-    }
-
-    function submitRecord(e) {
-        e.preventDefault();
-        recordForm.post(route('dental-records.store', patient.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                recordForm.reset();
-                setShowRecordModal(false);
-            },
-        });
-    }
-
-    const patientField = (label, name, type = 'text') => (
-        <div>
-            <label className="block text-sm mb-1">{label}</label>
-            <input
-                type={type}
-                className="w-full border rounded px-3 py-2"
-                value={patientForm.data[name]}
-                onChange={(e) => patientForm.setData(name, e.target.value)}
-            />
-            {patientForm.errors[name] && <p className="text-sm text-red-600">{patientForm.errors[name]}</p>}
-        </div>
+    const selectedToothEntries = toothConditions.filter(
+        (entry) => entry.tooth_number === selectedTooth,
     );
 
+    const tabs = [
+        { id: 'overview', label: 'Overview' },
+        { id: 'records', label: 'Records', count: dentalRecords.length },
+        { id: 'chart', label: 'Dental chart', count: toothConditions.length },
+        { id: 'treatment', label: 'Treatment plan', count: openTreatments.length },
+        { id: 'prescriptions', label: 'Prescriptions', count: activeRx.length },
+        { id: 'billing', label: 'Billing', count: invoices.length },
+    ];
+
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">{patient.first_name} {patient.last_name}</h2>}>
+        <AuthenticatedLayout title={`${patient.first_name} ${patient.last_name}`}>
             <Head title={`${patient.first_name} ${patient.last_name}`} />
 
-            <div className="py-8 max-w-4xl mx-auto sm:px-6 lg:px-8">
-                <div className="mb-6 flex gap-6 border-b">
-                    <button
-                        type="button"
-                        onClick={() => setTab('overview')}
-                        className={`pb-2 text-sm font-medium ${tab === 'overview' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Overview
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('records')}
-                        className={`pb-2 text-sm font-medium ${tab === 'records' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Dental Records
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('chart')}
-                        className={`pb-2 text-sm font-medium ${tab === 'chart' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Dental Chart
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('treatment')}
-                        className={`pb-2 text-sm font-medium ${tab === 'treatment' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Treatment Plan
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('prescriptions')}
-                        className={`pb-2 text-sm font-medium ${tab === 'prescriptions' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Prescriptions
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('billing')}
-                        className={`pb-2 text-sm font-medium ${tab === 'billing' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500'}`}
-                    >
-                        Billing
-                    </button>
-                </div>
+            <PageContainer>
+                <PatientHeader
+                    patient={patient}
+                    summary={summary}
+                    balance={balance}
+                    openTreatments={openTreatments.length}
+                    activeRx={activeRx.length}
+                    onEdit={() => {
+                        patientForm.clearErrors();
+                        setShowEdit(true);
+                    }}
+                />
 
-                {tab === 'overview' && (
-                    <div className="bg-white shadow rounded p-6">
-                        <div className="mb-4 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setShowEditModal(true)}
-                                className="text-sm text-blue-600"
-                            >
-                                Edit
-                            </button>
-                        </div>
-                        <dl className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <dt className="text-gray-500">Date of birth</dt>
-                                <dd>{patient.date_of_birth ?? '—'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-gray-500">Phone</dt>
-                                <dd>{patient.phone ?? '—'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-gray-500">Email</dt>
-                                <dd>{patient.email ?? '—'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-gray-500">Recall interval (months)</dt>
-                                <dd>{patient.recall_interval_months ?? '—'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-gray-500">Emergency contact</dt>
-                                <dd>{patient.emergency_contact_name ?? '—'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-gray-500">Emergency contact phone</dt>
-                                <dd>{patient.emergency_contact_phone ?? '—'}</dd>
-                            </div>
-                        </dl>
-                        {patient.notes && (
-                            <div className="mt-4">
-                                <dt className="text-sm text-gray-500">Notes</dt>
-                                <dd className="text-sm">{patient.notes}</dd>
-                            </div>
-                        )}
+                <Tabs tabs={tabs} active={tab} onChange={setTab} className="mb-5" />
+
+                <TabPanel id="overview" active={tab}>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                        <Card>
+                            <CardHeader title="Contact & emergency" />
+                            <CardBody>
+                                <dl className="grid grid-cols-2 gap-4">
+                                    <DetailItem label="Date of birth">
+                                        {patient.date_of_birth ? formatDate(patient.date_of_birth) : null}
+                                    </DetailItem>
+                                    <DetailItem label="Phone">{patient.phone}</DetailItem>
+                                    <DetailItem label="Email" className="col-span-2">
+                                        {patient.email}
+                                    </DetailItem>
+                                    <DetailItem label="Emergency contact">
+                                        {patient.emergency_contact_name}
+                                    </DetailItem>
+                                    <DetailItem label="Emergency phone">
+                                        {patient.emergency_contact_phone}
+                                    </DetailItem>
+                                    <DetailItem label="Recall interval">
+                                        {patient.recall_interval_months
+                                            ? `${patient.recall_interval_months} months`
+                                            : '6 months (default)'}
+                                    </DetailItem>
+                                </dl>
+                            </CardBody>
+                        </Card>
+
+                        <Card>
+                            <CardHeader title="Recent clinical activity" />
+                            {dentalRecords.length === 0 ? (
+                                <EmptyState
+                                    icon={FileText}
+                                    title="No clinical records yet"
+                                    description="Examinations, diagnoses, and procedures recorded on this patient appear here."
+                                />
+                            ) : (
+                                <ul className="divide-y divide-slate-100">
+                                    {dentalRecords.slice(0, 4).map((record) => (
+                                        <li key={record.id} className="px-4 py-3 sm:px-5">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <StatusBadge
+                                                    status={{ label: record.type.replace('_', ' '), tone: 'info' }}
+                                                />
+                                                <span className="tabular text-xs text-slate-500">
+                                                    {formatDate(record.created_at)}
+                                                </span>
+                                            </div>
+                                            <p className="mt-1.5 line-clamp-2 text-sm text-slate-700">
+                                                {record.diagnosis || record.examination || record.procedure || record.notes}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {dentalRecords.length > 4 && (
+                                <div className="border-t border-slate-200 px-4 py-2.5 sm:px-5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTab('records')}
+                                        className="text-sm font-medium text-brand-700 hover:text-brand-800"
+                                    >
+                                        View all {dentalRecords.length} records
+                                    </button>
+                                </div>
+                            )}
+                        </Card>
                     </div>
-                )}
+                </TabPanel>
 
-                {tab === 'records' && (
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() => setShowRecordModal(true)}
-                            className="mb-4 rounded bg-gray-900 px-4 py-2 text-white"
-                        >
-                            + New Record
-                        </button>
-
+                <TabPanel id="records" active={tab}>
+                    <SectionHeading
+                        title="Dental records"
+                        count={dentalRecords.length}
+                        actions={
+                            <Button
+                                size="sm"
+                                icon={Plus}
+                                onClick={() => {
+                                    recordForm.clearErrors();
+                                    setShowRecord(true);
+                                }}
+                            >
+                                New record
+                            </Button>
+                        }
+                    />
+                    {dentalRecords.length === 0 ? (
+                        <Card>
+                            <EmptyState
+                                icon={FileText}
+                                title="No dental records yet"
+                                description="Records are append-only — once saved, a record stays on the chart exactly as written."
+                            />
+                        </Card>
+                    ) : (
                         <div className="space-y-3">
                             {dentalRecords.map((record) => (
-                                <div key={record.id} className="bg-white shadow rounded p-4 text-sm">
-                                    <div className="text-gray-500">
-                                        {record.type.replace('_', ' ')}
-                                        {record.provider_name && ` · ${record.provider_name}`}
-                                        {record.appointment_start_time && ` · linked to ${formatDateTime(record.appointment_start_time)}`}
-                                    </div>
-                                    {record.examination && <p className="mt-2"><strong>Examination:</strong> {record.examination}</p>}
-                                    {record.diagnosis && <p className="mt-2"><strong>Diagnosis:</strong> {record.diagnosis}</p>}
-                                    {record.procedure && <p className="mt-2"><strong>Procedure:</strong> {record.procedure}</p>}
-                                    {record.notes && <p className="mt-2"><strong>Notes:</strong> {record.notes}</p>}
-                                    <div className="mt-3 text-xs text-gray-400">
-                                        Logged by {record.creator_name} on {formatDate(record.created_at)}
-                                    </div>
-                                </div>
+                                <RecordCard key={record.id} record={record} />
                             ))}
-                            {dentalRecords.length === 0 && (
-                                <div className="bg-white shadow rounded p-4 text-sm text-gray-500">
-                                    No dental records yet.
+                        </div>
+                    )}
+                </TabPanel>
+
+                <TabPanel id="chart" active={tab}>
+                    <Card>
+                        <CardHeader
+                            title="Dental chart"
+                            description="Each tooth shows its most recent charted condition."
+                        />
+                        <CardBody>
+                            <DentalChart
+                                toothConditions={toothConditions}
+                                selected={selectedTooth}
+                                onSelect={openTooth}
+                            />
+                        </CardBody>
+                    </Card>
+                </TabPanel>
+
+                <TabPanel id="treatment" active={tab}>
+                    <div className="space-y-6">
+                        <div>
+                            <SectionHeading
+                                title="Active"
+                                count={openTreatments.length}
+                                actions={
+                                    <Button
+                                        size="sm"
+                                        icon={Plus}
+                                        onClick={() => {
+                                            treatmentForm.reset();
+                                            treatmentForm.clearErrors();
+                                            setShowTreatment(true);
+                                        }}
+                                    >
+                                        New treatment
+                                    </Button>
+                                }
+                            />
+                            {openTreatments.length === 0 ? (
+                                <Card>
+                                    <EmptyState
+                                        icon={ClipboardList}
+                                        title="No active treatments"
+                                        description="Proposed work appears here until it is completed or cancelled."
+                                    />
+                                </Card>
+                            ) : (
+                                <div className="space-y-3">
+                                    {openTreatments.map((item) => (
+                                        <TreatmentCard
+                                            key={item.id}
+                                            item={item}
+                                            onEdit={() => openTreatmentEdit(item)}
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </div>
-                    </div>
-                )}
 
-                {tab === 'chart' && (
-                    <div className="bg-white shadow rounded p-6">
-                        <div className="mb-2 flex justify-center gap-1">
-                            {UPPER_TEETH.map((n) => {
-                                const current = currentConditionFor(toothConditions, n);
-                                return (
-                                    <button
-                                        key={n}
-                                        type="button"
-                                        onClick={() => openTooth(n)}
-                                        className={`w-9 h-9 rounded border text-xs font-medium ${current ? CONDITION_COLORS[current.condition] : UNMARKED_COLOR}`}
-                                    >
-                                        {n}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <div className="flex justify-center gap-1">
-                            {LOWER_TEETH.map((n) => {
-                                const current = currentConditionFor(toothConditions, n);
-                                return (
-                                    <button
-                                        key={n}
-                                        type="button"
-                                        onClick={() => openTooth(n)}
-                                        className={`w-9 h-9 rounded border text-xs font-medium ${current ? CONDITION_COLORS[current.condition] : UNMARKED_COLOR}`}
-                                    >
-                                        {n}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        <div className="mt-6 flex flex-wrap justify-center gap-3 text-xs">
-                            <div className="flex items-center gap-1">
-                                <span className={`inline-block w-3 h-3 rounded border ${UNMARKED_COLOR}`} />
-                                No history
-                            </div>
-                            {TOOTH_CONDITIONS.map((c) => (
-                                <div key={c} className="flex items-center gap-1">
-                                    <span className={`inline-block w-3 h-3 rounded border ${CONDITION_COLORS[c]}`} />
-                                    {c.replace('_', ' ')}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {tab === 'treatment' && (
-                    <div>
-                        <button
-                            type="button"
-                            onClick={openTreatmentModal}
-                            className="mb-4 rounded bg-gray-900 px-4 py-2 text-white"
-                        >
-                            + New Treatment Item
-                        </button>
-
-                        <div className="space-y-6">
+                        {resolvedTreatments.length > 0 && (
                             <div>
-                                <h4 className="mb-2 text-sm font-semibold text-gray-500">Active</h4>
+                                <SectionHeading title="Resolved" count={resolvedTreatments.length} />
                                 <div className="space-y-3">
-                                    {treatmentPlanItems.filter((item) => ACTIVE_TREATMENT_STATUSES.includes(item.status)).map((item) => (
-                                        <TreatmentPlanItemCard key={item.id} item={item} onEdit={() => openTreatmentEdit(item)} />
+                                    {resolvedTreatments.map((item) => (
+                                        <TreatmentCard
+                                            key={item.id}
+                                            item={item}
+                                            onEdit={() => openTreatmentEdit(item)}
+                                        />
                                     ))}
-                                    {treatmentPlanItems.filter((item) => ACTIVE_TREATMENT_STATUSES.includes(item.status)).length === 0 && (
-                                        <div className="bg-white shadow rounded p-4 text-sm text-gray-500">No active treatment items.</div>
-                                    )}
                                 </div>
                             </div>
-                            <div>
-                                <h4 className="mb-2 text-sm font-semibold text-gray-500">Resolved</h4>
-                                <div className="space-y-3">
-                                    {treatmentPlanItems.filter((item) => !ACTIVE_TREATMENT_STATUSES.includes(item.status)).map((item) => (
-                                        <TreatmentPlanItemCard key={item.id} item={item} onEdit={() => openTreatmentEdit(item)} />
-                                    ))}
-                                    {treatmentPlanItems.filter((item) => !ACTIVE_TREATMENT_STATUSES.includes(item.status)).length === 0 && (
-                                        <div className="bg-white shadow rounded p-4 text-sm text-gray-500">No resolved treatment items.</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
-                )}
+                </TabPanel>
 
-                {tab === 'prescriptions' && (
+                <TabPanel id="prescriptions" active={tab}>
                     <PrescriptionsTab
                         patient={patient}
                         prescriptions={prescriptions}
                         providers={providers}
                         appointments={appointments}
                     />
-                )}
+                </TabPanel>
 
-                {tab === 'billing' && (
+                <TabPanel id="billing" active={tab}>
                     <BillingTab
                         patient={patient}
                         invoices={invoices}
-                        treatmentPlanItems={treatmentPlanItems}
+                        billableTreatmentItems={billableTreatmentItems}
                     />
+                </TabPanel>
+            </PageContainer>
+
+            {/* Edit patient */}
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    patientForm.put(route('patients.update', patient.id), {
+                        onSuccess: () => setShowEdit(false),
+                    });
+                }}
+                show={showEdit}
+                onClose={() => setShowEdit(false)}
+                closeable={!patientForm.processing}
+                title="Edit patient details"
+                width="2xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowEdit(false)} disabled={patientForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={patientForm.processing}>
+                            {patientForm.processing ? 'Saving…' : 'Save changes'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {[
+                        ['First name', 'first_name', { required: true }],
+                        ['Last name', 'last_name', { required: true }],
+                        ['Date of birth', 'date_of_birth', { type: 'date' }],
+                        ['Phone', 'phone', { type: 'tel' }],
+                        ['Email', 'email', { type: 'email' }],
+                        ['Recall interval (months)', 'recall_interval_months', { type: 'number', min: 1, max: 60 }],
+                        ['Emergency contact', 'emergency_contact_name', {}],
+                        ['Emergency contact phone', 'emergency_contact_phone', { type: 'tel' }],
+                    ].map(([label, name, props]) => (
+                        <Field
+                            key={name}
+                            label={label}
+                            value={patientForm.data[name]}
+                            onChange={(e) => patientForm.setData(name, e.target.value)}
+                            error={patientForm.errors[name]}
+                            {...props}
+                        />
+                    ))}
+                </div>
+                <TextareaField
+                    label="Notes"
+                    className="mt-4"
+                    value={patientForm.data.notes}
+                    onChange={(e) => patientForm.setData('notes', e.target.value)}
+                    error={patientForm.errors.notes}
+                    hint="Shown as an alert at the top of this patient's record."
+                />
+            </Modal>
+
+            {/* New dental record */}
+            <Modal
+                as="form"
+                onSubmit={submit(recordForm, route('dental-records.store', patient.id), () => setShowRecord(false))}
+                show={showRecord}
+                onClose={() => setShowRecord(false)}
+                closeable={!recordForm.processing}
+                title="New dental record"
+                description="Records are append-only. Once saved this cannot be edited or removed."
+                width="2xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowRecord(false)} disabled={recordForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={recordForm.processing}>
+                            {recordForm.processing ? 'Saving…' : 'Save record'}
+                        </Button>
+                    </>
+                }
+            >
+                {recordForm.errors.clinical_content && (
+                    <p className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+                        {recordForm.errors.clinical_content}
+                    </p>
                 )}
-            </div>
 
-            {showEditModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitPatientEdit} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">Edit patient</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            {patientField('First name', 'first_name')}
-                            {patientField('Last name', 'last_name')}
-                            {patientField('Date of birth', 'date_of_birth', 'date')}
-                            {patientField('Phone', 'phone')}
-                            {patientField('Email', 'email', 'email')}
-                            {patientField('Recall interval (months)', 'recall_interval_months', 'number')}
-                            {patientField('Emergency contact name', 'emergency_contact_name')}
-                            {patientField('Emergency contact phone', 'emergency_contact_phone')}
-                        </div>
-                        <div>
-                            <label className="block text-sm mb-1">Notes</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={3}
-                                value={patientForm.data.notes}
-                                onChange={(e) => patientForm.setData('notes', e.target.value)}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={patientForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                        label="Type"
+                        value={recordForm.data.type}
+                        onChange={(e) => recordForm.setData('type', e.target.value)}
+                        error={recordForm.errors.type}
+                    >
+                        {RECORD_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                                {type.replace('_', ' ')}
+                            </option>
+                        ))}
+                    </SelectField>
+                    <ProviderPicker
+                        providers={providers}
+                        value={recordForm.data.provider_id}
+                        onChange={(e) => recordForm.setData('provider_id', e.target.value)}
+                        error={recordForm.errors.provider_id}
+                    />
+                    <AppointmentPicker
+                        appointments={appointments}
+                        value={recordForm.data.appointment_id}
+                        onChange={(e) => recordForm.setData('appointment_id', e.target.value)}
+                        error={recordForm.errors.appointment_id}
+                    />
                 </div>
-            )}
 
-            {showRecordModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitRecord} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">New dental record</h3>
+                <div className="mt-4 space-y-4">
+                    {[
+                        ['Examination', 'examination'],
+                        ['Diagnosis', 'diagnosis'],
+                        ['Procedure', 'procedure'],
+                        ['Notes', 'notes'],
+                    ].map(([label, name]) => (
+                        <TextareaField
+                            key={name}
+                            label={label}
+                            rows={2}
+                            value={recordForm.data[name]}
+                            onChange={(e) => recordForm.setData(name, e.target.value)}
+                            error={recordForm.errors[name]}
+                        />
+                    ))}
+                </div>
+            </Modal>
 
-                        {recordForm.errors.clinical_content && (
-                            <p className="text-sm text-red-600">{recordForm.errors.clinical_content}</p>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Type</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={recordForm.data.type}
-                                    onChange={(e) => recordForm.setData('type', e.target.value)}
-                                >
-                                    {TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Provider</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={recordForm.data.provider_id}
-                                    onChange={(e) => recordForm.setData('provider_id', e.target.value)}
-                                >
-                                    <option value="">No provider</option>
-                                    {providers.map((p) => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
-                                {recordForm.errors.provider_id && <p className="text-sm text-red-600">{recordForm.errors.provider_id}</p>}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Link to appointment (optional)</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={recordForm.data.appointment_id}
-                                onChange={(e) => recordForm.setData('appointment_id', e.target.value)}
+            {/* Tooth history + new entry */}
+            <Modal
+                as="form"
+                onSubmit={submit(toothForm, route('tooth-conditions.store', patient.id), () =>
+                    setSelectedTooth(null),
+                )}
+                show={selectedTooth !== null}
+                onClose={() => setSelectedTooth(null)}
+                closeable={!toothForm.processing}
+                title={`Tooth ${selectedTooth ?? ''}`}
+                description="Chart entries are append-only — a change of condition is a new entry, not an edit."
+                width="xl"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setSelectedTooth(null)} disabled={toothForm.processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={toothForm.processing}>
+                            {toothForm.processing ? 'Saving…' : 'Add entry'}
+                        </Button>
+                    </>
+                }
+            >
+                {selectedToothEntries.length > 0 ? (
+                    <ol className="mb-5 space-y-2">
+                        {selectedToothEntries.map((entry, index) => (
+                            <li
+                                key={entry.id}
+                                className={`rounded-lg border px-3 py-2.5 ${
+                                    index === 0 ? 'border-brand-200 bg-brand-50/50' : 'border-slate-200 bg-slate-50'
+                                }`}
                             >
-                                <option value="">No linked appointment</option>
-                                {appointments.map((a) => (
-                                    <option key={a.id} value={a.id}>
-                                        {a.start_time ? formatDateTime(a.start_time) : 'Unscheduled'} — {a.type ?? 'request'}
-                                    </option>
-                                ))}
-                            </select>
-                            {recordForm.errors.appointment_id && <p className="text-sm text-red-600">{recordForm.errors.appointment_id}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Examination</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={recordForm.data.examination}
-                                onChange={(e) => recordForm.setData('examination', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm mb-1">Diagnosis</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={recordForm.data.diagnosis}
-                                onChange={(e) => recordForm.setData('diagnosis', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm mb-1">Procedure</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={recordForm.data.procedure}
-                                onChange={(e) => recordForm.setData('procedure', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm mb-1">Notes</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={recordForm.data.notes}
-                                onChange={(e) => recordForm.setData('notes', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowRecordModal(false)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={recordForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {selectedTooth !== null && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">Tooth {selectedTooth}</h3>
-
-                        <div className="space-y-3">
-                            {toothConditions.filter((c) => c.tooth_number === selectedTooth).map((c) => (
-                                <div key={c.id} className="bg-gray-50 rounded p-3 text-sm">
-                                    <div className="text-gray-500">
-                                        {c.condition.replace('_', ' ')}
-                                        {c.provider_name && ` · ${c.provider_name}`}
-                                        {c.appointment_start_time && ` · linked to ${formatDateTime(c.appointment_start_time)}`}
-                                    </div>
-                                    {c.notes && <p className="mt-2">{c.notes}</p>}
-                                    <div className="mt-2 text-xs text-gray-400">
-                                        Logged by {c.creator_name} on {formatDate(c.created_at)}
-                                    </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-sm font-medium text-slate-900">
+                                        {entry.condition.replace('_', ' ')}
+                                        {index === 0 && (
+                                            <span className="ms-2 text-xs font-normal text-brand-700">current</span>
+                                        )}
+                                    </span>
+                                    <span className="tabular text-xs text-slate-500">
+                                        {formatDate(entry.created_at)}
+                                    </span>
                                 </div>
+                                {entry.notes && <p className="mt-1 text-sm text-slate-700">{entry.notes}</p>}
+                                <p className="mt-1 text-xs text-slate-400">
+                                    {entry.creator_name}
+                                    {entry.provider_name && ` · ${entry.provider_name}`}
+                                </p>
+                            </li>
+                        ))}
+                    </ol>
+                ) : (
+                    <p className="mb-5 rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-500">
+                        Nothing charted on this tooth yet.
+                    </p>
+                )}
+
+                <div className="border-t border-slate-200 pt-4">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Add an entry</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <SelectField
+                            label="Condition"
+                            value={toothForm.data.condition}
+                            onChange={(e) => toothForm.setData('condition', e.target.value)}
+                            error={toothForm.errors.condition}
+                        >
+                            {TOOTH_CONDITIONS.map((condition) => (
+                                <option key={condition} value={condition}>
+                                    {condition.replace('_', ' ')}
+                                </option>
                             ))}
-                            {toothConditions.filter((c) => c.tooth_number === selectedTooth).length === 0 && (
-                                <div className="text-sm text-gray-500">No history for this tooth yet.</div>
-                            )}
-                        </div>
-
-                        <form onSubmit={submitToothCondition} className="space-y-4 border-t pt-4">
-                            <h4 className="text-sm font-semibold">+ Add entry</h4>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm mb-1">Condition</label>
-                                    <select
-                                        className="w-full border rounded px-3 py-2"
-                                        value={toothForm.data.condition}
-                                        onChange={(e) => toothForm.setData('condition', e.target.value)}
-                                    >
-                                        {TOOTH_CONDITIONS.map((c) => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
-                                    </select>
-                                    {toothForm.errors.condition && <p className="text-sm text-red-600">{toothForm.errors.condition}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm mb-1">Provider</label>
-                                    <select
-                                        className="w-full border rounded px-3 py-2"
-                                        value={toothForm.data.provider_id}
-                                        onChange={(e) => toothForm.setData('provider_id', e.target.value)}
-                                    >
-                                        <option value="">No provider</option>
-                                        {providers.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                    {toothForm.errors.provider_id && <p className="text-sm text-red-600">{toothForm.errors.provider_id}</p>}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm mb-1">Link to appointment (optional)</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={toothForm.data.appointment_id}
-                                    onChange={(e) => toothForm.setData('appointment_id', e.target.value)}
-                                >
-                                    <option value="">No linked appointment</option>
-                                    {appointments.map((a) => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.start_time ? formatDateTime(a.start_time) : 'Unscheduled'} — {a.type ?? 'request'}
-                                        </option>
-                                    ))}
-                                </select>
-                                {toothForm.errors.appointment_id && <p className="text-sm text-red-600">{toothForm.errors.appointment_id}</p>}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm mb-1">Notes</label>
-                                <textarea
-                                    className="w-full border rounded px-3 py-2"
-                                    rows={2}
-                                    value={toothForm.data.notes}
-                                    onChange={(e) => toothForm.setData('notes', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => { toothForm.clearErrors(); setSelectedTooth(null); }} className="px-4 py-2 text-sm">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={toothForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                    Save
-                                </button>
-                            </div>
-                        </form>
+                        </SelectField>
+                        <ProviderPicker
+                            providers={providers}
+                            value={toothForm.data.provider_id}
+                            onChange={(e) => toothForm.setData('provider_id', e.target.value)}
+                            error={toothForm.errors.provider_id}
+                        />
+                        <AppointmentPicker
+                            appointments={appointments}
+                            value={toothForm.data.appointment_id}
+                            onChange={(e) => toothForm.setData('appointment_id', e.target.value)}
+                            error={toothForm.errors.appointment_id}
+                        />
                     </div>
+                    <TextareaField
+                        label="Notes"
+                        className="mt-4"
+                        rows={2}
+                        value={toothForm.data.notes}
+                        onChange={(e) => toothForm.setData('notes', e.target.value)}
+                        error={toothForm.errors.notes}
+                    />
                 </div>
-            )}
+            </Modal>
 
-            {showTreatmentModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitTreatment} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">New treatment item</h3>
+            {/* New treatment item */}
+            <Modal
+                as="form"
+                onSubmit={submit(treatmentForm, route('treatment-plan-items.store', patient.id), () =>
+                    setShowTreatment(false),
+                )}
+                show={showTreatment}
+                onClose={() => setShowTreatment(false)}
+                closeable={!treatmentForm.processing}
+                title="New treatment item"
+                description="Treatment, tooth, provider, and linked appointment are fixed once saved."
+                width="2xl"
+                footer={
+                    <>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowTreatment(false)}
+                            disabled={treatmentForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={treatmentForm.processing}>
+                            {treatmentForm.processing ? 'Saving…' : 'Add treatment'}
+                        </Button>
+                    </>
+                }
+            >
+                <Field
+                    label="Treatment"
+                    required
+                    value={treatmentForm.data.treatment}
+                    onChange={(e) => treatmentForm.setData('treatment', e.target.value)}
+                    error={treatmentForm.errors.treatment}
+                />
 
-                        <div>
-                            <label className="block text-sm mb-1">Treatment</label>
-                            <input
-                                type="text"
-                                className="w-full border rounded px-3 py-2"
-                                value={treatmentForm.data.treatment}
-                                onChange={(e) => treatmentForm.setData('treatment', e.target.value)}
-                            />
-                            {treatmentForm.errors.treatment && <p className="text-sm text-red-600">{treatmentForm.errors.treatment}</p>}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Tooth (optional)</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentForm.data.tooth_number}
-                                    onChange={(e) => treatmentForm.setData('tooth_number', e.target.value)}
-                                >
-                                    <option value="">Whole mouth</option>
-                                    {ALL_TEETH.map((n) => <option key={n} value={n}>{n}</option>)}
-                                </select>
-                                {treatmentForm.errors.tooth_number && <p className="text-sm text-red-600">{treatmentForm.errors.tooth_number}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Priority</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentForm.data.priority}
-                                    onChange={(e) => treatmentForm.setData('priority', e.target.value)}
-                                >
-                                    {TREATMENT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                                </select>
-                                {treatmentForm.errors.priority && <p className="text-sm text-red-600">{treatmentForm.errors.priority}</p>}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Provider</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentForm.data.provider_id}
-                                    onChange={(e) => treatmentForm.setData('provider_id', e.target.value)}
-                                >
-                                    <option value="">No provider</option>
-                                    {providers.map((p) => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
-                                {treatmentForm.errors.provider_id && <p className="text-sm text-red-600">{treatmentForm.errors.provider_id}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Estimated cost (₱)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentForm.data.estimated_cost}
-                                    onChange={(e) => treatmentForm.setData('estimated_cost', e.target.value)}
-                                />
-                                {treatmentForm.errors.estimated_cost && <p className="text-sm text-red-600">{treatmentForm.errors.estimated_cost}</p>}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Link to appointment (optional)</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={treatmentForm.data.appointment_id}
-                                onChange={(e) => treatmentForm.setData('appointment_id', e.target.value)}
-                            >
-                                <option value="">No linked appointment</option>
-                                {appointments.map((a) => (
-                                    <option key={a.id} value={a.id}>
-                                        {a.start_time ? formatDateTime(a.start_time) : 'Unscheduled'} — {a.type ?? 'request'}
-                                    </option>
-                                ))}
-                            </select>
-                            {treatmentForm.errors.appointment_id && <p className="text-sm text-red-600">{treatmentForm.errors.appointment_id}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Notes</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={treatmentForm.data.notes}
-                                onChange={(e) => treatmentForm.setData('notes', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => { treatmentForm.clearErrors(); setShowTreatmentModal(false); }} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={treatmentForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                        label="Tooth"
+                        value={treatmentForm.data.tooth_number}
+                        onChange={(e) => treatmentForm.setData('tooth_number', e.target.value)}
+                        error={treatmentForm.errors.tooth_number}
+                    >
+                        <option value="">Whole mouth</option>
+                        {ALL_TEETH.map((number) => (
+                            <option key={number} value={number}>
+                                Tooth {number}
+                            </option>
+                        ))}
+                    </SelectField>
+                    <SelectField
+                        label="Priority"
+                        value={treatmentForm.data.priority}
+                        onChange={(e) => treatmentForm.setData('priority', e.target.value)}
+                        error={treatmentForm.errors.priority}
+                    >
+                        {TREATMENT_PRIORITIES.map((priority) => (
+                            <option key={priority} value={priority}>
+                                {priority}
+                            </option>
+                        ))}
+                    </SelectField>
+                    <ProviderPicker
+                        providers={providers}
+                        value={treatmentForm.data.provider_id}
+                        onChange={(e) => treatmentForm.setData('provider_id', e.target.value)}
+                        error={treatmentForm.errors.provider_id}
+                    />
+                    <Field
+                        label="Estimated cost (₱)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputClassName="tabular"
+                        value={treatmentForm.data.estimated_cost}
+                        onChange={(e) => treatmentForm.setData('estimated_cost', e.target.value)}
+                        error={treatmentForm.errors.estimated_cost}
+                    />
+                    <AppointmentPicker
+                        appointments={appointments}
+                        value={treatmentForm.data.appointment_id}
+                        onChange={(e) => treatmentForm.setData('appointment_id', e.target.value)}
+                        error={treatmentForm.errors.appointment_id}
+                    />
                 </div>
-            )}
 
-            {editingTreatmentItem && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-                    <form onSubmit={submitTreatmentEdit} className="bg-white rounded p-6 w-full max-w-lg space-y-4 my-8">
-                        <h3 className="font-semibold">Edit: {editingTreatmentItem.treatment}</h3>
+                <TextareaField
+                    label="Notes"
+                    className="mt-4"
+                    rows={2}
+                    value={treatmentForm.data.notes}
+                    onChange={(e) => treatmentForm.setData('notes', e.target.value)}
+                    error={treatmentForm.errors.notes}
+                />
+            </Modal>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm mb-1">Status</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentEditForm.data.status}
-                                    onChange={(e) => treatmentEditForm.setData('status', e.target.value)}
-                                >
-                                    {TREATMENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                                </select>
-                                {treatmentEditForm.errors.status && <p className="text-sm text-red-600">{treatmentEditForm.errors.status}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm mb-1">Priority</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={treatmentEditForm.data.priority}
-                                    onChange={(e) => treatmentEditForm.setData('priority', e.target.value)}
-                                >
-                                    {TREATMENT_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                                </select>
-                                {treatmentEditForm.errors.priority && <p className="text-sm text-red-600">{treatmentEditForm.errors.priority}</p>}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Estimated cost (₱)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="w-full border rounded px-3 py-2"
-                                value={treatmentEditForm.data.estimated_cost}
-                                onChange={(e) => treatmentEditForm.setData('estimated_cost', e.target.value)}
-                            />
-                            {treatmentEditForm.errors.estimated_cost && <p className="text-sm text-red-600">{treatmentEditForm.errors.estimated_cost}</p>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm mb-1">Notes</label>
-                            <textarea
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                value={treatmentEditForm.data.notes}
-                                onChange={(e) => treatmentEditForm.setData('notes', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => { treatmentEditForm.clearErrors(); setEditingTreatmentItem(null); }} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={treatmentEditForm.processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+            {/* Edit treatment item */}
+            <Modal
+                as="form"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    treatmentEditForm.patch(
+                        route('treatment-plan-items.update', {
+                            patient: patient.id,
+                            treatmentPlanItem: editingTreatment.id,
+                        }),
+                        {
+                            preserveScroll: true,
+                            onSuccess: () => {
+                                treatmentEditForm.reset();
+                                setEditingTreatment(null);
+                            },
+                        },
+                    );
+                }}
+                show={editingTreatment !== null}
+                onClose={() => setEditingTreatment(null)}
+                closeable={!treatmentEditForm.processing}
+                title={editingTreatment?.treatment ?? 'Edit treatment'}
+                description="Status, priority, cost, and notes can change. The treatment itself and its tooth cannot."
+                width="lg"
+                footer={
+                    <>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setEditingTreatment(null)}
+                            disabled={treatmentEditForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={treatmentEditForm.processing}>
+                            {treatmentEditForm.processing ? 'Saving…' : 'Save changes'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                        label="Status"
+                        value={treatmentEditForm.data.status}
+                        onChange={(e) => treatmentEditForm.setData('status', e.target.value)}
+                        error={treatmentEditForm.errors.status}
+                    >
+                        {TREATMENT_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                                {status.replace('_', ' ')}
+                            </option>
+                        ))}
+                    </SelectField>
+                    <SelectField
+                        label="Priority"
+                        value={treatmentEditForm.data.priority}
+                        onChange={(e) => treatmentEditForm.setData('priority', e.target.value)}
+                        error={treatmentEditForm.errors.priority}
+                    >
+                        {TREATMENT_PRIORITIES.map((priority) => (
+                            <option key={priority} value={priority}>
+                                {priority}
+                            </option>
+                        ))}
+                    </SelectField>
+                    <Field
+                        label="Estimated cost (₱)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="sm:col-span-2"
+                        inputClassName="tabular"
+                        value={treatmentEditForm.data.estimated_cost}
+                        onChange={(e) => treatmentEditForm.setData('estimated_cost', e.target.value)}
+                        error={treatmentEditForm.errors.estimated_cost}
+                    />
                 </div>
-            )}
+                <TextareaField
+                    label="Notes"
+                    className="mt-4"
+                    rows={2}
+                    value={treatmentEditForm.data.notes}
+                    onChange={(e) => treatmentEditForm.setData('notes', e.target.value)}
+                    error={treatmentEditForm.errors.notes}
+                />
+            </Modal>
         </AuthenticatedLayout>
     );
 }

@@ -146,7 +146,7 @@ class InventoryItemController extends Controller
 
         $inventoryItem->update($validated);
 
-        return back();
+        return back()->with('success', 'Item saved.');
     }
 
     /**

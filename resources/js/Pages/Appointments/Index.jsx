@@ -1,18 +1,56 @@
-import { useRef, useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import Button from '@/Components/UI/Button';
+import Card, { CardHeader } from '@/Components/UI/Card';
+import Field, { SelectField } from '@/Components/UI/Field';
+import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
+import { PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatusBadge from '@/Components/UI/StatusBadge';
+import { appointmentStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Check, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { formatDate } from '../Patients/format';
 
 const TYPES = ['checkup', 'cleaning', 'procedure', 'other'];
-const STATUSES = ['requested', 'scheduled', 'checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show', 'declined'];
+const STATUSES = [
+    'requested',
+    'scheduled',
+    'checked_in',
+    'in_treatment',
+    'completed',
+    'cancelled',
+    'no_show',
+    'declined',
+];
+
+/**
+ * Event colours, by status.
+ *
+ * Every event used to render in FullCalendar's default blue regardless of
+ * status, so a cancelled slot looked exactly like a booked one — a slot a
+ * receptionist would decline to fill because it appeared taken. These
+ * mirror the tones in Components/UI/statuses.js.
+ */
+const EVENT_COLOURS = {
+    scheduled: { bg: '#2a54a0', border: '#244683' },
+    checked_in: { bg: '#7c3aed', border: '#6d28d9' },
+    in_treatment: { bg: '#059669', border: '#047857' },
+    completed: { bg: '#94a3b8', border: '#64748b' },
+    cancelled: { bg: '#cbd5e1', border: '#94a3b8' },
+    declined: { bg: '#cbd5e1', border: '#94a3b8' },
+    no_show: { bg: '#e11d48', border: '#be123c' },
+    requested: { bg: '#f59e0b', border: '#d97706' },
+};
 
 export default function Index({ patients, providers, requests }) {
     const calendarRef = useRef(null);
-    const [modal, setModal] = useState(null); // { mode: 'create'|'edit', ...fields }
-    const { data, setData, post, patch, processing, errors, reset } = useForm({
+    const [modal, setModal] = useState(null);
+    const [declining, setDeclining] = useState(null);
+    const { data, setData, post, patch, processing, errors, reset, clearErrors } = useForm({
         patient_id: '',
         provider_id: '',
         start_time: '',
@@ -27,295 +65,368 @@ export default function Index({ patients, providers, requests }) {
 
     function onSelect(selection) {
         reset();
-        setData((d) => ({
-            ...d,
+        clearErrors();
+        setData((current) => ({
+            ...current,
             start_time: selection.startStr.slice(0, 16),
             end_time: selection.endStr.slice(0, 16),
         }));
         setModal({ mode: 'create' });
     }
 
-    function onEventClick(clickInfo) {
-        const props = clickInfo.event.extendedProps;
+    function onEventClick(info) {
+        const props = info.event.extendedProps;
+        clearErrors();
         setData({
             patient_id: '',
             provider_id: '',
-            start_time: clickInfo.event.startStr.slice(0, 16),
-            end_time: clickInfo.event.endStr.slice(0, 16),
-            type: props.type,
+            start_time: info.event.startStr.slice(0, 16),
+            end_time: info.event.endStr?.slice(0, 16) ?? '',
+            type: props.type ?? 'checkup',
             status: props.status,
         });
-        setModal({ mode: 'edit', id: clickInfo.event.id });
+        setModal({ mode: 'edit', id: info.event.id, patientName: props.patientName });
     }
 
-    function onEventDrop(dropInfo) {
-        // Uses router.patch directly (not the shared useForm instance) so the
-        // dragged event's new start/end are what actually gets sent — the
-        // form's own data state belongs to the create/edit modal and may be
-        // stale or empty at the time of a drag.
+    function onEventDrop(info) {
+        // router.patch directly, not the shared useForm instance: the
+        // form's data belongs to the create/edit modal and may be stale or
+        // empty at the moment of a drag.
         router.patch(
-            route('appointments.update', dropInfo.event.id),
+            route('appointments.update', info.event.id),
             {
-                start_time: dropInfo.event.startStr.slice(0, 19).replace('T', ' '),
-                end_time: dropInfo.event.endStr.slice(0, 19).replace('T', ' '),
+                start_time: info.event.startStr.slice(0, 19).replace('T', ' '),
+                end_time: info.event.endStr.slice(0, 19).replace('T', ' '),
             },
-            {
-                onError: () => dropInfo.revert(),
-            }
+            { onError: () => info.revert(), preserveScroll: true },
         );
     }
 
-    function onConfirmRequest(request) {
-        setData({
-            patient_id: '',
-            provider_id: '',
-            start_time: '',
-            end_time: '',
-            type: 'checkup',
-            status: 'scheduled',
-        });
-        setModal({ mode: 'confirm', id: request.id, request });
-    }
+    function submit(event) {
+        event.preventDefault();
+        const done = {
+            onSuccess: () => {
+                setModal(null);
+                refetch();
+            },
+        };
 
-    function onDeclineRequest(request) {
-        router.patch(
-            route('appointments.update', request.id),
-            { status: 'declined' },
-            { preserveScroll: true }
-        );
-    }
-
-    function submit(e) {
-        e.preventDefault();
         if (modal.mode === 'create') {
-            post(route('appointments.store'), {
-                onSuccess: () => {
-                    setModal(null);
-                    refetch();
-                },
-            });
+            post(route('appointments.store'), done);
         } else {
-            patch(route('appointments.update', modal.id), {
-                onSuccess: () => {
-                    setModal(null);
-                    refetch();
-                },
-            });
+            patch(route('appointments.update', modal.id), done);
         }
     }
 
+    const modalTitle = {
+        create: 'New appointment',
+        edit: 'Edit appointment',
+        confirm: `Confirm request — ${modal?.request?.patient_name ?? ''}`,
+    }[modal?.mode];
+
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Appointments</h2>}>
+        <AuthenticatedLayout
+            title="Appointments"
+            navBadges={{ 'appointments.index': requests.length }}
+        >
             <Head title="Appointments" />
 
-            <div className="py-8 max-w-5xl mx-auto sm:px-6 lg:px-8">
+            <PageContainer>
+                <PageHeader
+                    title="Appointments"
+                    description="Drag an event to move it, or drag on empty time to book."
+                />
+
                 {requests.length > 0 && (
-                    <div className="mb-6 bg-white shadow rounded">
-                        <div className="border-b px-4 py-3">
-                            <h3 className="font-semibold">
-                                Appointment requests
-                                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                                    {requests.length} pending
+                    <Card className="mb-5 border-amber-200">
+                        <CardHeader
+                            className="border-amber-200 bg-amber-50"
+                            title={
+                                <span className="flex items-center gap-2">
+                                    Appointment requests
+                                    <StatusBadge
+                                        status={{ label: `${requests.length} pending`, tone: 'warning' }}
+                                    />
                                 </span>
-                            </h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                                Submitted from the public site. Confirming lets you set the real
-                                appointment time — the date and time of day below are the patient&rsquo;s
-                                preference.
-                            </p>
-                        </div>
-                        <div className="divide-y">
+                            }
+                            description="From the public site. Confirming lets you set the real time and emails the patient; declining emails them too."
+                        />
+                        <ul className="divide-y divide-slate-200">
                             {requests.map((request) => (
-                                <div key={request.id} className="flex items-start justify-between gap-4 p-4">
-                                    <div className="text-sm">
-                                        <div className="font-medium">{request.patient_name}</div>
-                                        <div className="text-gray-500">
+                                <li
+                                    key={request.id}
+                                    className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 sm:px-5"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {request.patient_name}
+                                        </p>
+                                        <p className="truncate text-xs text-slate-500">
                                             {request.patient_email}
                                             {request.patient_phone && ` · ${request.patient_phone}`}
-                                        </div>
-                                        <div className="mt-1">{request.service_interest}</div>
-                                        <div className="text-gray-500">
-                                            Prefers {request.preferred_date} ({request.preferred_time_of_day})
-                                            {' · '}
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-800">{request.service_interest}</p>
+                                        <p className="text-xs text-slate-500">
+                                            Prefers {formatDate(request.preferred_date)} (
+                                            {request.preferred_time_of_day}) ·{' '}
                                             {request.dentist_preference ?? 'No dentist preference'}
-                                        </div>
+                                        </p>
                                         {request.notes && (
-                                            <p className="mt-1 text-gray-700">{request.notes}</p>
+                                            <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                                {request.notes}
+                                            </p>
                                         )}
                                     </div>
+
                                     <div className="flex shrink-0 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => onConfirmRequest(request)}
-                                            className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white"
+                                        <Button
+                                            size="sm"
+                                            icon={Check}
+                                            onClick={() => {
+                                                clearErrors();
+                                                setData({
+                                                    patient_id: '',
+                                                    provider_id: '',
+                                                    start_time: '',
+                                                    end_time: '',
+                                                    type: 'checkup',
+                                                    status: 'scheduled',
+                                                });
+                                                setModal({ mode: 'confirm', id: request.id, request });
+                                            }}
                                         >
                                             Confirm
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => onDeclineRequest(request)}
-                                            className="rounded border px-3 py-1.5 text-sm text-gray-700"
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            icon={X}
+                                            onClick={() => setDeclining(request)}
                                         >
                                             Decline
-                                        </button>
+                                        </Button>
                                     </div>
-                                </div>
+                                </li>
                             ))}
-                        </div>
-                    </div>
+                        </ul>
+                    </Card>
                 )}
 
-                <div className="bg-white shadow rounded p-4">
+                <Card className="overflow-hidden p-3 sm:p-4">
                     <FullCalendar
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                         initialView="timeGridWeek"
+                        headerToolbar={{
+                            left: 'prev,next today',
+                            center: 'title',
+                            right: 'timeGridDay,timeGridWeek,dayGridMonth',
+                        }}
+                        height="auto"
+                        // Clamped to clinic hours: the default 00:00–24:00
+                        // window spent most of its height on time the clinic
+                        // is shut, pushing the working day off-screen.
+                        slotMinTime="08:00:00"
+                        slotMaxTime="19:00:00"
+                        expandRows
+                        nowIndicator
+                        allDaySlot={false}
+                        stickyHeaderDates
                         selectable
                         editable
                         select={onSelect}
                         eventClick={onEventClick}
                         eventDrop={onEventDrop}
-                        events={(fetchInfo, successCallback, failureCallback) => {
+                        eventDidMount={(info) => {
+                            const colour = EVENT_COLOURS[info.event.extendedProps.status];
+                            if (!colour) return;
+                            info.el.style.backgroundColor = colour.bg;
+                            info.el.style.borderColor = colour.border;
+                        }}
+                        events={(fetchInfo, success, failure) => {
                             fetch(
                                 route('appointments.events', {
                                     start: fetchInfo.startStr,
                                     end: fetchInfo.endStr,
-                                })
+                                }),
                             )
-                                .then((res) => res.json())
-                                .then(successCallback)
-                                .catch(failureCallback);
+                                .then((response) => {
+                                    if (!response.ok) throw new Error(response.statusText);
+                                    return response.json();
+                                })
+                                .then(success)
+                                .catch(failure);
                         }}
                     />
-                </div>
-            </div>
 
-            {modal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-                    <form onSubmit={submit} className="bg-white rounded p-6 w-full max-w-sm space-y-4">
-                        <h3 className="font-semibold">
-                            {modal.mode === 'create' && 'New appointment'}
-                            {modal.mode === 'edit' && 'Edit appointment'}
-                            {modal.mode === 'confirm' && `Confirm request — ${modal.request.patient_name}`}
-                        </h3>
-
-                        {modal.mode === 'confirm' && (
-                            <>
-                                <p className="rounded bg-gray-50 p-3 text-sm text-gray-600">
-                                    Requested {modal.request.service_interest} · prefers{' '}
-                                    {modal.request.preferred_date} ({modal.request.preferred_time_of_day})
-                                    {modal.request.dentist_preference && ` · ${modal.request.dentist_preference}`}
-                                </p>
-                                <div>
-                                    <label className="block text-sm mb-1">Provider</label>
-                                    <select
-                                        className="w-full border rounded px-3 py-2"
-                                        value={data.provider_id}
-                                        onChange={(e) => setData('provider_id', e.target.value)}
-                                    >
-                                        <option value="">Select a provider</option>
-                                        {providers.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.provider_id && <p className="text-sm text-red-600">{errors.provider_id}</p>}
-                                </div>
-                            </>
+                    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-200 pt-3">
+                        {['scheduled', 'checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show'].map(
+                            (status) => (
+                                <li key={status} className="flex items-center gap-1.5 text-xs text-slate-600">
+                                    <span
+                                        className="inline-block h-2.5 w-2.5 rounded-sm"
+                                        style={{ backgroundColor: EVENT_COLOURS[status].bg }}
+                                        aria-hidden="true"
+                                    />
+                                    {appointmentStatus(status).label}
+                                </li>
+                            ),
                         )}
+                    </ul>
+                </Card>
+            </PageContainer>
 
-                        {modal.mode === 'create' && (
-                            <>
-                                <div>
-                                    <label className="block text-sm mb-1">Patient</label>
-                                    <select
-                                        className="w-full border rounded px-3 py-2"
-                                        value={data.patient_id}
-                                        onChange={(e) => setData('patient_id', e.target.value)}
-                                    >
-                                        <option value="">Select a patient</option>
-                                        {patients.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.patient_id && <p className="text-sm text-red-600">{errors.patient_id}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm mb-1">Provider</label>
-                                    <select
-                                        className="w-full border rounded px-3 py-2"
-                                        value={data.provider_id}
-                                        onChange={(e) => setData('provider_id', e.target.value)}
-                                    >
-                                        <option value="">Select a provider</option>
-                                        {providers.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.provider_id && <p className="text-sm text-red-600">{errors.provider_id}</p>}
-                                </div>
-                            </>
-                        )}
+            <Modal
+                as="form"
+                onSubmit={submit}
+                show={modal !== null}
+                onClose={() => setModal(null)}
+                closeable={!processing}
+                title={modalTitle}
+                width="lg"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setModal(null)} disabled={processing}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={processing}>
+                            {processing ? 'Saving…' : modal?.mode === 'confirm' ? 'Confirm & email' : 'Save'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    {modal?.mode === 'confirm' && (
+                        <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                            Requested {modal.request.service_interest} · prefers{' '}
+                            {formatDate(modal.request.preferred_date)} ({modal.request.preferred_time_of_day})
+                            {modal.request.dentist_preference && ` · ${modal.request.dentist_preference}`}
+                        </p>
+                    )}
 
-                        <div>
-                            <label className="block text-sm mb-1">Type</label>
-                            <select
-                                className="w-full border rounded px-3 py-2"
-                                value={data.type}
-                                onChange={(e) => setData('type', e.target.value)}
-                            >
-                                {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                    {modal?.mode === 'create' && (
+                        <SelectField
+                            label="Patient"
+                            required
+                            value={data.patient_id}
+                            onChange={(e) => setData('patient_id', e.target.value)}
+                            error={errors.patient_id}
+                        >
+                            <option value="">Select a patient</option>
+                            {patients.map((patient) => (
+                                <option key={patient.id} value={patient.id}>
+                                    {patient.last_name}, {patient.first_name}
+                                </option>
+                            ))}
+                        </SelectField>
+                    )}
+
+                    {(modal?.mode === 'create' || modal?.mode === 'confirm') && (
+                        <SelectField
+                            label="Provider"
+                            required
+                            value={data.provider_id}
+                            onChange={(e) => setData('provider_id', e.target.value)}
+                            error={errors.provider_id}
+                        >
+                            <option value="">Select a provider</option>
+                            {providers.map((provider) => (
+                                <option key={provider.id} value={provider.id}>
+                                    {provider.name}
+                                </option>
+                            ))}
+                        </SelectField>
+                    )}
+
+                    <SelectField
+                        label="Type"
+                        value={data.type}
+                        onChange={(e) => setData('type', e.target.value)}
+                        error={errors.type}
+                    >
+                        {TYPES.map((type) => (
+                            <option key={type} value={type}>
+                                {type}
+                            </option>
+                        ))}
+                    </SelectField>
+
+                    {modal?.mode === 'confirm' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field
+                                label="Start"
+                                required
+                                type="datetime-local"
+                                value={data.start_time}
+                                onChange={(e) => setData('start_time', e.target.value)}
+                                error={errors.start_time}
+                            />
+                            <Field
+                                label="End"
+                                required
+                                type="datetime-local"
+                                value={data.end_time}
+                                onChange={(e) => setData('end_time', e.target.value)}
+                                error={errors.end_time}
+                            />
                         </div>
+                    )}
 
-                        {modal.mode === 'confirm' && (
-                            <>
-                                <div>
-                                    <label className="block text-sm mb-1">Start</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="w-full border rounded px-3 py-2"
-                                        value={data.start_time}
-                                        onChange={(e) => setData('start_time', e.target.value)}
-                                    />
-                                    {errors.start_time && <p className="text-sm text-red-600">{errors.start_time}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm mb-1">End</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="w-full border rounded px-3 py-2"
-                                        value={data.end_time}
-                                        onChange={(e) => setData('end_time', e.target.value)}
-                                    />
-                                    {errors.end_time && <p className="text-sm text-red-600">{errors.end_time}</p>}
-                                </div>
-                            </>
-                        )}
-
-                        {modal.mode === 'edit' && (
-                            <div>
-                                <label className="block text-sm mb-1">Status</label>
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={data.status}
-                                    onChange={(e) => setData('status', e.target.value)}
-                                >
-                                    {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
+                    {modal?.mode === 'edit' && (
+                        <>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                    label="Start"
+                                    type="datetime-local"
+                                    value={data.start_time}
+                                    onChange={(e) => setData('start_time', e.target.value)}
+                                    error={errors.start_time}
+                                />
+                                <Field
+                                    label="End"
+                                    type="datetime-local"
+                                    value={data.end_time}
+                                    onChange={(e) => setData('end_time', e.target.value)}
+                                    error={errors.end_time}
+                                />
                             </div>
-                        )}
-
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled={processing} className="rounded bg-gray-900 px-4 py-2 text-white text-sm">
-                                Save
-                            </button>
-                        </div>
-                    </form>
+                            <SelectField
+                                label="Status"
+                                value={data.status}
+                                onChange={(e) => setData('status', e.target.value)}
+                                error={errors.status}
+                            >
+                                {STATUSES.map((status) => (
+                                    <option key={status} value={status}>
+                                        {appointmentStatus(status).label}
+                                    </option>
+                                ))}
+                            </SelectField>
+                        </>
+                    )}
                 </div>
-            )}
+            </Modal>
+
+            <ConfirmDialog
+                show={declining !== null}
+                onClose={() => setDeclining(null)}
+                onConfirm={() =>
+                    router.patch(
+                        route('appointments.update', declining.id),
+                        { status: 'declined' },
+                        {
+                            preserveScroll: true,
+                            onFinish: () => {
+                                setDeclining(null);
+                                refetch();
+                            },
+                        },
+                    )
+                }
+                title={`Decline ${declining?.patient_name}'s request?`}
+                confirmLabel="Decline and email"
+                body="This emails the patient to tell them the request was not accepted, and cannot be undone — they would have to submit a new request."
+            />
         </AuthenticatedLayout>
     );
 }
