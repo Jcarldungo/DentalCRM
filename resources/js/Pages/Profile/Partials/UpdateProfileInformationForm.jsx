@@ -16,6 +16,7 @@ export default function UpdateProfileInformation({
         useForm({
             name: user.name,
             email: user.email,
+            current_password: '',
         });
 
     const submit = (e) => {
@@ -68,6 +69,35 @@ export default function UpdateProfileInformation({
 
                     <InputError className="mt-2" message={errors.email} />
                 </div>
+
+                {data.email !== user.email && (
+                    <div>
+                        <InputLabel
+                            htmlFor="current_password"
+                            value="Current password"
+                        />
+
+                        <TextInput
+                            id="current_password"
+                            type="password"
+                            className="mt-1 block w-full"
+                            value={data.current_password}
+                            onChange={(e) =>
+                                setData('current_password', e.target.value)
+                            }
+                            autoComplete="current-password"
+                        />
+
+                        <p className="mt-1 text-sm text-gray-500">
+                            Required to change your email address.
+                        </p>
+
+                        <InputError
+                            className="mt-2"
+                            message={errors.current_password}
+                        />
+                    </div>
+                )}
 
                 {mustVerifyEmail && user.email_verified_at === null && (
                     <div>

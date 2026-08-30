@@ -26,6 +26,13 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            // Only required when the email is actually changing — the form
+            // always submits both fields, so a plain name edit must not be
+            // blocked on a password the user has no reason to enter.
+            'current_password' => [
+                Rule::requiredIf(fn () => $this->input('email') !== $this->user()->email),
+                'current_password',
+            ],
         ];
     }
 }
