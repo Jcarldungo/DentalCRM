@@ -72,4 +72,44 @@ class AuthenticationTest extends TestCase
             session('errors')->first('email')
         );
     }
+
+    public function test_a_successful_login_does_not_clear_the_ip_throttle_bucket(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->post('/login', [
+                'email' => "attempt{$i}@example.com",
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $user = User::factory()->create();
+
+        $loginResponse = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $loginResponse->assertRedirect(route('dashboard', absolute: false));
+
+        $this->post('/logout');
+
+        for ($i = 10; $i < 20; $i++) {
+            $this->post('/login', [
+                'email' => "attempt{$i}@example.com",
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $response = $this->post('/login', [
+            'email' => 'attempt20@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertStringContainsString(
+            'Too many login attempts',
+            session('errors')->first('email')
+        );
+    }
 }
