@@ -2,7 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { formatPeso } from '@/Pages/Patients/format';
 
-export default function Dashboard({ dueForRecall, outstanding }) {
+export default function Dashboard({ dueForRecall, outstanding, inventory }) {
     return (
         <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Dashboard</h2>}>
             <Head title="Dashboard" />
@@ -19,6 +19,22 @@ export default function Dashboard({ dueForRecall, outstanding }) {
                         <p className="text-sm text-gray-600">
                             {formatPeso(outstanding.total)}
                             {' '}across {outstanding.count} invoice{outstanding.count === 1 ? '' : 's'}
+                        </p>
+                    )}
+                </Link>
+
+                <Link
+                    href={route('inventory.index', { filter: 'low' })}
+                    className="block rounded bg-white p-4 shadow hover:bg-gray-50"
+                >
+                    <h3 className="font-semibold mb-1">Inventory</h3>
+                    {inventory.low_count === 0 && inventory.expiring_count === 0 ? (
+                        <p className="text-sm text-gray-500">Stock levels healthy.</p>
+                    ) : (
+                        <p className="text-sm text-gray-600">
+                            {inventory.low_count} item{inventory.low_count === 1 ? '' : 's'} low on stock
+                            {' · '}
+                            {inventory.expiring_count} expiring soon
                         </p>
                     )}
                 </Link>
