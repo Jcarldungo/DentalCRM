@@ -28,9 +28,14 @@ Route::post('/contact', [InquiryController::class, 'store'])
     ->middleware('throttle:6,1')
     ->name('inquiries.store');
 
-// Public appointment request submission
+// Public appointment request submission.
+//
+// 3/hour, not 6/minute: max_requests_per_slot is 6, so a 6/minute limit
+// let one IP saturate a whole date + time-of-day slot every minute and
+// deny the clinic real bookings. Three requests an hour is generous for a
+// genuine guest and makes slot exhaustion cost real infrastructure.
 Route::post('/book', [BookingController::class, 'store'])
-    ->middleware('throttle:6,1')
+    ->middleware('throttle:3,60')
     ->name('bookings.store');
 
 // Public appointment status lookup (no account — a signed emailed link)

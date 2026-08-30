@@ -40,6 +40,11 @@ class PublicSiteController extends Controller
         return Inertia::render('Public/Book', [
             'initialService' => $request->query('service'),
             'closedDays' => array_values(config('clinic.closed_days')),
+            // The same lists BookingController validates against, so the
+            // <select> and the Rule::in() cannot drift apart.
+            'bookableServices' => array_values(config('clinic.bookable_services')),
+            'bookableDentists' => array_values(config('clinic.bookable_dentists')),
+            'maxDaysAhead' => (int) config('clinic.max_booking_days_ahead'),
         ]);
     }
 }

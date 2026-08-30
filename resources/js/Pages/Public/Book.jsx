@@ -4,8 +4,6 @@ import PublicLayout from '@/Layouts/PublicLayout';
 import Container from '@/Components/Public/Container';
 import SectionHeading from '@/Components/Public/SectionHeading';
 import ContactInfo from '@/Components/Public/ContactInfo';
-import { services } from '@/Data/services';
-import { dentists } from '@/Data/dentists';
 import { CheckCircle2 } from 'lucide-react';
 
 const inputClass =
@@ -16,14 +14,21 @@ const TIMES_OF_DAY = [
     { value: 'afternoon', label: 'Afternoon' },
 ];
 
-function todayIsoDate() {
+function isoDateInDays(days = 0) {
     const now = new Date();
+    now.setDate(now.getDate() + days);
     const offsetMinutes = now.getTimezoneOffset();
 
     return new Date(now.getTime() - offsetMinutes * 60_000).toISOString().slice(0, 10);
 }
 
-export default function Book({ initialService, closedDays }) {
+export default function Book({
+    initialService,
+    closedDays,
+    bookableServices,
+    bookableDentists,
+    maxDaysAhead,
+}) {
     const [submitted, setSubmitted] = useState(false);
     const [dateWarning, setDateWarning] = useState(null);
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -117,9 +122,9 @@ export default function Book({ initialService, closedDays }) {
                                         className={inputClass}
                                     >
                                         <option value="">Select a service</option>
-                                        {services.map((service) => (
-                                            <option key={service.slug} value={service.name}>
-                                                {service.name}
+                                        {bookableServices.map((service) => (
+                                            <option key={service} value={service}>
+                                                {service}
                                             </option>
                                         ))}
                                     </select>
@@ -141,9 +146,9 @@ export default function Book({ initialService, closedDays }) {
                                         className={inputClass}
                                     >
                                         <option value="">No preference</option>
-                                        {dentists.map((dentist) => (
-                                            <option key={dentist.slug} value={dentist.name}>
-                                                {dentist.name} — {dentist.specialty}
+                                        {bookableDentists.map((dentist) => (
+                                            <option key={dentist} value={dentist}>
+                                                {dentist}
                                             </option>
                                         ))}
                                     </select>
@@ -156,7 +161,8 @@ export default function Book({ initialService, closedDays }) {
                                     <input
                                         id="preferred_date"
                                         type="date"
-                                        min={todayIsoDate()}
+                                        min={isoDateInDays()}
+                                        max={isoDateInDays(maxDaysAhead)}
                                         value={data.preferred_date}
                                         onChange={(e) => onDateChange(e.target.value)}
                                         aria-describedby={

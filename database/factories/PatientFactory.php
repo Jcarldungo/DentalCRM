@@ -22,7 +22,8 @@ class PatientFactory extends Factory
             'last_name' => $this->faker->lastName(),
             'date_of_birth' => $this->faker->dateTimeBetween('-70 years', '-5 years')->format('Y-m-d'),
             'phone' => $this->faker->numerify('09#########'),
-            'email' => $this->faker->safeEmail(),
+            // unique(): patients.email carries a unique index.
+            'email' => $this->faker->unique()->safeEmail(),
             'emergency_contact_name' => $this->faker->name(),
             'emergency_contact_phone' => $this->faker->numerify('09#########'),
             'notes' => null,

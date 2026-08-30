@@ -40,6 +40,51 @@ return [
     'contact_email' => 'hello@harborviewdental.example',
 
     /*
+     * The canonical values a public booking may carry for
+     * `service_interest` and `dentist_preference`. These are the authority
+     * on both sides: PublicSiteController::book() passes them to the
+     * booking form as Inertia props, so the <select> a guest sees and the
+     * Rule::in() the server enforces cannot drift apart.
+     *
+     * Without this the fields accepted 255 characters of anything, and a
+     * booking against a known patient's email appends to that patient's
+     * record — so attacker-authored text was rendered back to them on
+     * their own signed lookup page inside the clinic's branded UI.
+     *
+     * resources/js/Data/services.js and dentists.js keep the richer
+     * marketing content (description, price, bio) for the services and
+     * dentists pages. Related data, but not the same data — keep the names
+     * here in step with the names there.
+     */
+    'bookable_services' => [
+        'Dental Cleaning',
+        'Dental Fillings',
+        'Tooth Extraction',
+        'Root Canal Treatment',
+        'Dental Crowns',
+        'Dental Implants',
+        'Braces',
+        'Teeth Whitening',
+        'Veneers',
+        'Dentures',
+        'Pediatric Dentistry',
+        'General Consultation',
+    ],
+
+    'bookable_dentists' => [
+        'Dr. Elena Santos',
+        'Dr. Marcus Reyes',
+        'Dr. Priya Nair',
+    ],
+
+    /*
+     * How far ahead a guest may request an appointment. Without an upper
+     * bound, '9999-12-31' validates and a slot arbitrarily far in the
+     * future can be poisoned.
+     */
+    'max_booking_days_ahead' => 180,
+
+    /*
      * The shared code a new staff member must supply at /register.
      * Empty or unset disables self-registration entirely — GET and POST
      * /register both 403. A real deployment sets this to a strong value,

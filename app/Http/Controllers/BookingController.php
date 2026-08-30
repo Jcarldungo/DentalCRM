@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Patient;
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -19,11 +20,22 @@ class BookingController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
-            'service_interest' => ['required', 'string', 'max:255'],
-            'dentist_preference' => ['nullable', 'string', 'max:255'],
+            // Constrained to the canonical lists rather than 255 characters
+            // of anything: a booking against a known patient's email
+            // appends to that patient's record, and both of these fields
+            // are rendered back to them on their own signed lookup page.
+            'service_interest' => ['required', Rule::in(config('clinic.bookable_services'))],
+            'dentist_preference' => ['nullable', Rule::in(config('clinic.bookable_dentists'))],
             // 'bail' matters here: without it the closed-day closure still runs
             // after 'date' fails, and Carbon::parse() throws on unparseable input.
-            'preferred_date' => ['bail', 'required', 'date', 'after_or_equal:today', $this->clinicIsOpen()],
+            'preferred_date' => [
+                'bail',
+                'required',
+                'date',
+                'after_or_equal:today',
+                'before_or_equal:'.now()->addDays((int) config('clinic.max_booking_days_ahead'))->toDateString(),
+                $this->clinicIsOpen(),
+            ],
             'preferred_time_of_day' => ['required', Rule::in(Appointment::TIMES_OF_DAY)],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -83,26 +95,44 @@ class BookingController extends Controller
         }
     }
 
+    /**
+     * The lookup and the insert used to be a plain check-then-act, so two
+     * concurrent bookings for the same new email created two patient rows —
+     * after which ->first() silently returned the lower id and the signed
+     * lookup page omitted the other row's appointments entirely.
+     *
+     * firstOrCreate closes the window at the application level and the
+     * unique index on patients.email closes it at the schema level; the
+     * retry covers the case where the other request won the race between
+     * our SELECT and our INSERT.
+     *
+     * An existing patient's name, phone, and date of birth are deliberately
+     * never overwritten from a guest booking.
+     */
     private function findOrCreatePatient(string $name, string $email, string $phone): Patient
     {
         $email = Str::lower(trim($email));
 
         // Compared with an explicit LOWER() rather than relying on the column's
         // collation happening to be case-insensitive.
-        $patient = Patient::whereRaw('LOWER(email) = ?', [$email])->first();
+        $existing = Patient::whereRaw('LOWER(email) = ?', [$email])->first();
 
-        if ($patient) {
-            return $patient;
+        if ($existing) {
+            return $existing;
         }
 
         [$firstName, $lastName] = $this->splitName($name);
 
-        return Patient::create([
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'email' => $email,
-            'phone' => $phone,
-        ]);
+        try {
+            return Patient::create([
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email,
+                'phone' => $phone,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return Patient::whereRaw('LOWER(email) = ?', [$email])->firstOrFail();
+        }
     }
 
     /**

@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\AppointmentLookupLink;
+use App\Jobs\SendAppointmentLookupLink;
 use App\Models\Patient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -41,12 +40,23 @@ class AppointmentLookupController extends Controller
         ]);
 
         $email = Str::lower(trim($validated['email']));
-        $patient = Patient::whereRaw('LOWER(email) = ?', [$email])->first();
         $rateLimitKey = 'appointment-lookup:'.$email;
 
-        if ($patient && ! RateLimiter::tooManyAttempts($rateLimitKey, self::MAX_LINKS_PER_EMAIL_PER_HOUR)) {
+        // The limiter runs on the submitted address whether or not it
+        // matched. Short-circuiting on `$patient &&` skipped it entirely on
+        // a miss, so a hit and a miss did measurably different amounts of
+        // work — and once an address was over its limit, that difference
+        // became permanent rather than decaying.
+        $withinLimit = ! RateLimiter::tooManyAttempts($rateLimitKey, self::MAX_LINKS_PER_EMAIL_PER_HOUR);
+
+        if ($withinLimit) {
             RateLimiter::hit($rateLimitKey, 3600);
-            Mail::to($patient->email)->send(new AppointmentLookupLink($patient));
+
+            // Both the match and the mail happen on the worker, so the
+            // request path does the same work either way and the branch
+            // never shows up in the response time. AppointmentLookupLink
+            // is already ShouldQueue for the same reason.
+            SendAppointmentLookupLink::dispatch($email);
         }
 
         return back()->with('status', self::CONFIRMATION_MESSAGE);

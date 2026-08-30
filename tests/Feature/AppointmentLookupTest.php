@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendAppointmentLookupLink;
 use App\Mail\AppointmentLookupLink;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Provider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -219,5 +222,55 @@ class AppointmentLookupTest extends TestCase
         $response = $this->get($tamperedUrl);
 
         $response->assertForbidden();
+    }
+
+    /**
+     * The limiter used to short-circuit on `$patient &&`, so a miss did
+     * strictly less work than a hit — and once an address was over its
+     * limit, that difference stopped decaying and became a permanent
+     * oracle. Asserted on limiter state, which is deterministic, rather
+     * than on wall-clock timing, which is not.
+     */
+    public function test_the_rate_limiter_is_consumed_identically_for_a_miss_and_a_hit(): void
+    {
+        Mail::fake();
+        Patient::factory()->create(['email' => 'angela@example.com']);
+
+        $this->post(route('appointments.lookup.send'), ['email' => 'angela@example.com']);
+        $this->post(route('appointments.lookup.send'), ['email' => 'nobody@example.com']);
+
+        $this->assertSame(
+            RateLimiter::attempts('appointment-lookup:nobody@example.com'),
+            RateLimiter::attempts('appointment-lookup:angela@example.com'),
+        );
+        $this->assertSame(1, RateLimiter::attempts('appointment-lookup:nobody@example.com'));
+    }
+
+    public function test_an_unknown_email_is_rate_limited_the_same_way(): void
+    {
+        Mail::fake();
+
+        foreach (range(1, 4) as $attempt) {
+            $this->post(route('appointments.lookup.send'), ['email' => 'nobody@example.com'])
+                ->assertRedirect();
+        }
+
+        $this->assertSame(3, RateLimiter::attempts('appointment-lookup:nobody@example.com'));
+        Mail::assertNothingOutgoing();
+    }
+
+    /**
+     * The request path must not branch on whether the email matched — the
+     * decision belongs on the worker.
+     */
+    public function test_the_send_endpoint_dispatches_the_same_job_either_way(): void
+    {
+        Queue::fake();
+        Patient::factory()->create(['email' => 'angela@example.com']);
+
+        $this->post(route('appointments.lookup.send'), ['email' => 'angela@example.com']);
+        $this->post(route('appointments.lookup.send'), ['email' => 'nobody@example.com']);
+
+        Queue::assertPushed(SendAppointmentLookupLink::class, 2);
     }
 }

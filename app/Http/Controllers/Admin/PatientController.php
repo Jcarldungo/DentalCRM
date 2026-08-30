@@ -12,6 +12,7 @@ use App\Models\ToothCondition;
 use App\Models\TreatmentPlanItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -122,7 +123,7 @@ class PatientController extends Controller
 
     public function update(Request $request, Patient $patient): RedirectResponse
     {
-        $validated = $this->validated($request);
+        $validated = $this->validated($request, $patient);
 
         $patient->update($validated);
 
@@ -151,14 +152,23 @@ class PatientController extends Controller
         return back();
     }
 
-    protected function validated(Request $request): array
+    protected function validated(Request $request, ?Patient $patient = null): array
     {
         return $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'date_of_birth' => ['nullable', 'date'],
+            // A future date of birth is a typo, not a patient.
+            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
             'phone' => ['nullable', 'string', 'max:30'],
-            'email' => ['nullable', 'email', 'max:255'],
+            // Unique because patients.email carries a unique index — the
+            // public booking flow matches an existing patient on it, so a
+            // duplicate would make that match ambiguous.
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('patients', 'email')->ignore($patient),
+            ],
             'emergency_contact_name' => ['nullable', 'string', 'max:255'],
             'emergency_contact_phone' => ['nullable', 'string', 'max:30'],
             'notes' => ['nullable', 'string'],

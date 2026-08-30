@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\Provider;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -343,5 +344,85 @@ class BookingTest extends TestCase
 
         $response->assertSessionHasNoErrors();
         $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_service_interest_must_be_a_bookable_service(): void
+    {
+        $this->post(route('bookings.store'), $this->validPayload([
+            'service_interest' => 'URGENT - your account is overdue, call 0917-555-0100',
+        ]))->assertSessionHasErrors('service_interest');
+
+        $this->assertSame(0, Appointment::count());
+    }
+
+    public function test_dentist_preference_must_be_a_bookable_dentist(): void
+    {
+        $this->post(route('bookings.store'), $this->validPayload([
+            'dentist_preference' => 'Dr. Not A Real Person',
+        ]))->assertSessionHasErrors('dentist_preference');
+
+        $this->assertSame(0, Appointment::count());
+    }
+
+    /**
+     * Both fields are rendered back to the patient on their own signed
+     * lookup page, so free text there is attacker-authored content inside
+     * the clinic's branded UI. The form and the rule must offer the same
+     * set, which is why the lists reach the page as props.
+     */
+    public function test_the_bookable_lists_are_the_ones_the_form_offers(): void
+    {
+        $this->get(route('book'))->assertInertia(fn ($page) => $page
+            ->component('Public/Book')
+            ->where('bookableServices', config('clinic.bookable_services'))
+            ->where('bookableDentists', config('clinic.bookable_dentists'))
+        );
+    }
+
+    public function test_a_preferred_date_beyond_the_booking_horizon_is_rejected(): void
+    {
+        $tooFar = now()->addDays((int) config('clinic.max_booking_days_ahead') + 1)
+            ->next(Carbon::MONDAY)->toDateString();
+
+        $this->post(route('bookings.store'), $this->validPayload(['preferred_date' => $tooFar]))
+            ->assertSessionHasErrors('preferred_date');
+
+        $this->post(route('bookings.store'), $this->validPayload(['preferred_date' => '9999-12-31']))
+            ->assertSessionHasErrors('preferred_date');
+
+        $this->assertSame(0, Appointment::count());
+    }
+
+    /**
+     * max_requests_per_slot is 6, so a 6/minute limit let one address
+     * saturate a whole slot every minute and deny the clinic real bookings.
+     */
+    public function test_bookings_are_limited_to_three_per_hour_per_address(): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            $this->post(route('bookings.store'), $this->validPayload([
+                'email' => "guest{$i}@example.com",
+            ]))->assertRedirect();
+        }
+
+        $this->post(route('bookings.store'), $this->validPayload(['email' => 'guest4@example.com']))
+            ->assertStatus(429);
+
+        $this->assertSame(3, Appointment::count());
+    }
+
+    public function test_two_patients_cannot_share_an_email(): void
+    {
+        Patient::factory()->create(['email' => 'shared@example.com']);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        Patient::factory()->create(['email' => 'shared@example.com']);
+    }
+
+    public function test_many_patients_may_have_no_email(): void
+    {
+        Patient::factory()->count(3)->create(['email' => null]);
+
+        $this->assertSame(3, Patient::whereNull('email')->count());
     }
 }
