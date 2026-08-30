@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -70,5 +72,24 @@ class RegistrationTest extends TestCase
 
         $response->assertSessionHasErrors('registration_code');
         $this->assertGuest();
+    }
+
+    public function test_registration_sends_a_verification_notification(): void
+    {
+        Notification::fake();
+
+        $this->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'SecurePass123',
+            'password_confirmation' => 'SecurePass123',
+            'registration_code' => 'harborview-2026',
+        ]);
+
+        $user = User::firstWhere('email', 'test@example.com');
+
+        $this->assertNotNull($user);
+        $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, \Illuminate\Auth\Notifications\VerifyEmail::class);
     }
 }
