@@ -1355,7 +1355,7 @@ git commit -m "Add the inventory dashboard tile"
 
 **Files:**
 - Modify: `resources/js/Layouts/AuthenticatedLayout.jsx` (a `NavLink` and a `ResponsiveNavLink`, after "Reports")
-- Create: `resources/js/Pages/Inventory/Index.jsx`
+- Overwrite: `resources/js/Pages/Inventory/Index.jsx` — a 3-line `return null` stub exists from Task 2 (needed because the Task 2 tests assert `->component('Inventory/Index')`, and `inertia.testing.ensure_pages_exist` requires the file on disk). Replace it wholesale with the component below.
 
 **Interfaces:**
 - Consumes: `inventory.index` props (`items`, `filters`) from Task 2; `inventory.store` from Task 3; `inventory.show`.
@@ -1702,7 +1702,7 @@ git commit -m "Add the inventory index page and nav link"
 ### Task 7: `Inventory/Show.jsx`
 
 **Files:**
-- Create: `resources/js/Pages/Inventory/Show.jsx`
+- Overwrite: `resources/js/Pages/Inventory/Show.jsx` — a 3-line `return null` stub exists from Task 2 (same reason as `Index.jsx`). Replace it wholesale with the component below.
 
 **Interfaces:**
 - Consumes: `inventory.show` `item` prop from Task 2; `inventory.update` (edit + archive/restore) from Task 3; `inventory-movements.store` from Task 4.
