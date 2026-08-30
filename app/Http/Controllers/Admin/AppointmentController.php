@@ -61,9 +61,11 @@ class AppointmentController extends Controller
                 'id' => $appointment->id,
                 'title' => $appointment->patient->full_name . ' — ' . ucfirst($appointment->type),
                 'start' => $appointment->start_time->toIso8601String(),
-                'end' => $appointment->end_time->toIso8601String(),
+                'end' => $appointment->end_time?->toIso8601String(),
                 'extendedProps' => [
-                    'provider' => $appointment->provider->name,
+                    'patientId' => $appointment->patient_id,
+                    'patientName' => $appointment->patient->full_name,
+                    'provider' => $appointment->provider?->name,
                     'type' => $appointment->type,
                     'status' => $appointment->status,
                 ],
@@ -121,7 +123,11 @@ class AppointmentController extends Controller
             : $appointment->end_time;
         $type = $validated['type'] ?? $appointment->type;
 
-        if ($status === 'scheduled') {
+        // Every board status, not just 'scheduled'. /queue and /workspace
+        // both project provider->name and end_time unconditionally, so a
+        // request forced straight to checked_in with a null provider used
+        // to 500 the queue page for every staff member, permanently.
+        if (in_array($status, Appointment::BOARD_STATUSES, true)) {
             $this->assertSchedulable($startTime, $endTime, $providerId, $type);
         }
 
@@ -177,9 +183,10 @@ class AppointmentController extends Controller
     }
 
     /**
-     * A scheduled appointment must be a complete one. Without this, a request
-     * could be marked scheduled with no start_time — and the FullCalendar feed
-     * filters on start_time, so it would look confirmed but never appear.
+     * An appointment on the board must be a complete one. Without this, a
+     * request could be marked scheduled with no start_time — and the
+     * FullCalendar feed filters on start_time, so it would look confirmed
+     * but never appear — or reach /queue with a null provider and crash it.
      */
     private function assertSchedulable(?Carbon $startTime, ?Carbon $endTime, ?int $providerId, ?string $type): void
     {

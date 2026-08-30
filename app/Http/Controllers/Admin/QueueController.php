@@ -25,17 +25,23 @@ class QueueController extends Controller
     {
         $appointments = Appointment::with(['patient', 'provider'])
             ->whereDate('start_time', now()->toDateString())
-            ->whereIn('status', ['scheduled', 'checked_in', 'in_treatment', 'completed'])
+            ->whereIn('status', Appointment::BOARD_STATUSES)
             ->orderBy('start_time')
             ->get();
 
+        // provider and end_time are null-guarded even though
+        // AppointmentController::update() now refuses to put an incomplete
+        // appointment on the board: a row written before that guard existed
+        // must not take the whole page down for every staff member.
         $forBoard = fn (Appointment $appointment) => [
             'id' => $appointment->id,
+            'patient_id' => $appointment->patient_id,
             'patient_name' => $appointment->patient->full_name,
-            'provider_name' => $appointment->provider->name,
+            'provider_name' => $appointment->provider?->name,
             'type' => $appointment->type,
+            'status' => $appointment->status,
             'start_time' => $appointment->start_time->toIso8601String(),
-            'end_time' => $appointment->end_time->toIso8601String(),
+            'end_time' => $appointment->end_time?->toIso8601String(),
         ];
 
         return Inertia::render('Queue/Index', [

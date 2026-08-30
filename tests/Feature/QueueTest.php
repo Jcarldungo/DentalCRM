@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class QueueTest extends TestCase
@@ -248,5 +249,81 @@ class QueueTest extends TestCase
 
         $response->assertSessionHasErrors('provider_id');
         $this->assertSame(1, Appointment::count());
+    }
+
+    /**
+     * The crash path: a guest request has a null provider_id and end_time,
+     * and PATCHing it straight onto the board used to be accepted because
+     * assertSchedulable() only ran for 'scheduled'. /queue then dereferenced
+     * provider->name and 500'd for every staff member, for good.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function boardStatusProvider(): array
+    {
+        return [
+            'checked_in' => ['checked_in'],
+            'in_treatment' => ['in_treatment'],
+            'completed' => ['completed'],
+            'scheduled' => ['scheduled'],
+        ];
+    }
+
+    #[DataProvider('boardStatusProvider')]
+    public function test_a_request_cannot_be_forced_onto_the_board_without_a_schedule(string $status): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->create([
+            'status' => 'requested',
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+        ]);
+
+        $response = $this->patch(route('appointments.update', $request), ['status' => $status]);
+
+        $response->assertSessionHasErrors(['provider_id', 'start_time', 'end_time', 'type']);
+        $this->assertSame('requested', $request->fresh()->status);
+    }
+
+    public function test_a_start_time_alone_does_not_get_a_request_onto_the_board(): void
+    {
+        $this->actingUser();
+        $request = Appointment::factory()->create([
+            'status' => 'requested',
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+        ]);
+
+        $this->patch(route('appointments.update', $request), [
+            'status' => 'checked_in',
+            'start_time' => now()->setTime(9, 0)->toDateTimeString(),
+            'end_time' => now()->setTime(9, 30)->toDateTimeString(),
+        ])->assertSessionHasErrors(['provider_id', 'type']);
+
+        $this->assertSame('requested', $request->fresh()->status);
+    }
+
+    /**
+     * Defence in depth for rows written before the guard above existed.
+     */
+    public function test_the_queue_renders_with_a_malformed_pre_existing_row(): void
+    {
+        $this->actingUser();
+        $appointment = Appointment::factory()->create([
+            'status' => 'checked_in',
+            'start_time' => now()->setTime(9, 0),
+        ]);
+        // Bypass the model so no application guard applies — this is the
+        // shape a row written before the fix would have.
+        \Illuminate\Support\Facades\DB::table('appointments')
+            ->where('id', $appointment->id)
+            ->update(['provider_id' => null, 'end_time' => null, 'type' => null]);
+
+        $this->get(route('queue.index'))->assertOk();
+        $this->get(route('workspace.index'))->assertOk();
     }
 }

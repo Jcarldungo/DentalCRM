@@ -3,10 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\DentalRecord;
+use App\Models\InventoryItem;
+use App\Models\Invoice;
+use App\Models\Payment;
+use App\Models\Prescription;
+use App\Models\StockMovement;
 use App\Models\ToothCondition;
 use App\Models\TreatmentPlanItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -101,33 +107,37 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->fresh());
     }
 
-    public function test_a_user_who_has_authored_a_dental_record_cannot_delete_their_account(): void
+    /**
+     * Every table with a NOT NULL `created_by` restricting foreign key to
+     * users.id. Three of these eight used to be guarded; the other five
+     * threw a QueryException from a delete that ran *after* the user had
+     * already been logged out, leaving them signed out with an intact
+     * account and an un-rotated session.
+     *
+     * @return array<string, array{0: callable(User): \Illuminate\Database\Eloquent\Model}>
+     */
+    public static function authoredRecordProvider(): array
     {
-        $user = User::factory()->create();
-        DentalRecord::factory()->create([
-            'created_by' => $user->id,
-        ]);
-
-        $response = $this
-            ->actingAs($user)
-            ->from('/profile')
-            ->delete('/profile', [
-                'password' => 'password',
-            ]);
-
-        $response
-            ->assertSessionHasErrors('password')
-            ->assertRedirect('/profile');
-
-        $this->assertNotNull($user->fresh());
+        return [
+            'dental record' => [fn (User $u) => DentalRecord::factory()->create(['created_by' => $u->id])],
+            'tooth condition' => [fn (User $u) => ToothCondition::factory()->create(['created_by' => $u->id])],
+            'treatment plan item' => [fn (User $u) => TreatmentPlanItem::factory()->create(['created_by' => $u->id])],
+            'prescription' => [fn (User $u) => Prescription::factory()->create(['created_by' => $u->id])],
+            'invoice' => [fn (User $u) => Invoice::factory()->create(['created_by' => $u->id])],
+            'payment' => [fn (User $u) => Payment::factory()->create([
+                'invoice_id' => Invoice::factory()->issued()->create(['created_by' => $u->id])->id,
+                'created_by' => $u->id,
+            ])],
+            'inventory item' => [fn (User $u) => InventoryItem::factory()->create(['created_by' => $u->id])],
+            'stock movement' => [fn (User $u) => StockMovement::factory()->create(['created_by' => $u->id])],
+        ];
     }
 
-    public function test_a_user_who_has_authored_a_tooth_condition_cannot_delete_their_account(): void
+    #[DataProvider('authoredRecordProvider')]
+    public function test_a_user_who_authored_a_record_cannot_delete_their_account(callable $authorRecord): void
     {
         $user = User::factory()->create();
-        ToothCondition::factory()->create([
-            'created_by' => $user->id,
-        ]);
+        $authorRecord($user);
 
         $response = $this
             ->actingAs($user)
@@ -141,27 +151,9 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->fresh());
-    }
-
-    public function test_a_user_who_has_authored_a_treatment_plan_item_cannot_delete_their_account(): void
-    {
-        $user = User::factory()->create();
-        TreatmentPlanItem::factory()->create([
-            'created_by' => $user->id,
-        ]);
-
-        $response = $this
-            ->actingAs($user)
-            ->from('/profile')
-            ->delete('/profile', [
-                'password' => 'password',
-            ]);
-
-        $response
-            ->assertSessionHasErrors('password')
-            ->assertRedirect('/profile');
-
-        $this->assertNotNull($user->fresh());
+        // The old order logged out first, so a refused delete signed the
+        // user out as a side effect of an error.
+        $this->assertAuthenticatedAs($user);
     }
 
     public function test_a_user_with_no_dental_records_can_still_delete_their_account(): void

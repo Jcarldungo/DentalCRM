@@ -14,6 +14,12 @@ class TreatmentPlanItem extends Model
 
     public const STATUSES = ['planned', 'scheduled', 'in_progress', 'completed', 'cancelled'];
 
+    /** Statuses that count as still open — the Active group on the patient page. */
+    public const OPEN_STATUSES = ['planned', 'scheduled', 'in_progress'];
+
+    /** Statuses worth putting on a bill, which includes work already done. */
+    public const BILLABLE_STATUSES = ['planned', 'scheduled', 'in_progress', 'completed'];
+
     protected $fillable = [
         'patient_id',
         'provider_id',

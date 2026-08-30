@@ -20,16 +20,6 @@ use Inertia\Response;
  */
 class WorkspaceController extends Controller
 {
-    /**
-     * Appointment statuses a prep view cares about — identical to
-     * QueueController::index(). 'requested' has no start_time, and
-     * cancelled/declined/no_show are not part of preparing for the day.
-     */
-    private const SHOWN_STATUSES = ['scheduled', 'checked_in', 'in_treatment', 'completed'];
-
-    /** Treatment-plan statuses that still represent work to do. */
-    private const OPEN_TREATMENT_STATUSES = ['planned', 'scheduled', 'in_progress'];
-
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -45,7 +35,7 @@ class WorkspaceController extends Controller
         $appointments = Appointment::query()
             ->with(['patient:id,first_name,last_name,date_of_birth', 'provider:id,name'])
             ->whereDate('start_time', $date)
-            ->whereIn('status', self::SHOWN_STATUSES)
+            ->whereIn('status', Appointment::BOARD_STATUSES)
             ->when($providerId !== null, fn ($query) => $query->where('provider_id', $providerId))
             ->orderBy('start_time')
             ->orderBy('id')
@@ -57,7 +47,7 @@ class WorkspaceController extends Controller
             ? collect()
             : TreatmentPlanItem::query()
                 ->whereIn('patient_id', $patientIds)
-                ->whereIn('status', self::OPEN_TREATMENT_STATUSES)
+                ->whereIn('status', TreatmentPlanItem::OPEN_STATUSES)
                 ->selectRaw('patient_id, COUNT(*) as total')
                 ->groupBy('patient_id')
                 ->pluck('total', 'patient_id');

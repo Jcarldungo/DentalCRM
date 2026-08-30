@@ -23,6 +23,18 @@ class Appointment extends Model
      */
     public const SLOT_FREEING_STATUSES = ['cancelled', 'declined', 'no_show'];
 
+    /**
+     * Statuses that put an appointment on the queue board and the dentist
+     * workspace — i.e. an appointment that is actually happening. Every one
+     * of these requires a real schedule (provider, start, end, type), which
+     * `AppointmentController::assertSchedulable()` enforces, because both
+     * surfaces project those fields unconditionally.
+     *
+     * The single source for the set that used to be duplicated in
+     * QueueController, WorkspaceController, and Patients/Show.jsx.
+     */
+    public const BOARD_STATUSES = ['scheduled', 'checked_in', 'in_treatment', 'completed'];
+
     protected $fillable = [
         'patient_id',
         'provider_id',

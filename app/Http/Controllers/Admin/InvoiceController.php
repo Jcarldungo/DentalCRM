@@ -285,15 +285,15 @@ class InvoiceController extends Controller
     }
 
     /**
-     * The patient's treatment-plan items worth putting on a bill:
-     * planned / scheduled / in_progress / completed. This status list is
-     * duplicated in BillingTab.jsx — see CLAUDE.md "Known gaps".
+     * The patient's treatment-plan items worth putting on a bill.
+     * BillingTab.jsx receives the same set as a prop rather than
+     * re-declaring it.
      */
     protected function linkableTreatmentItems(int $patientId): Collection
     {
         return TreatmentPlanItem::query()
             ->where('patient_id', $patientId)
-            ->whereIn('status', ['planned', 'scheduled', 'in_progress', 'completed'])
+            ->whereIn('status', TreatmentPlanItem::BILLABLE_STATUSES)
             ->orderBy('id')
             ->get()
             ->map(fn (TreatmentPlanItem $item) => [
