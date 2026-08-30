@@ -240,4 +240,25 @@ class InventoryItemTest extends TestCase
     {
         $this->assertFalse(Route::has('inventory.destroy'));
     }
+
+    public function test_dashboard_reports_low_and_expiring_counts(): void
+    {
+        Carbon::setTestNow('2026-08-30');
+        $this->actingUser();
+
+        $low = InventoryItem::factory()->create(['reorder_threshold' => 10]);
+        StockMovement::factory()->create(['inventory_item_id' => $low->id, 'quantity' => 3]);
+
+        $expiring = InventoryItem::factory()->create(['expiry_date' => '2026-09-10', 'reorder_threshold' => 0]);
+        StockMovement::factory()->create(['inventory_item_id' => $expiring->id, 'quantity' => 40]);
+
+        $archivedLow = InventoryItem::factory()->archived()->create(['reorder_threshold' => 10]);
+
+        $this->get(route('dashboard'))->assertInertia(fn ($page) => $page
+            ->component('Dashboard')
+            ->where('inventory.low_count', 1)
+            ->where('inventory.expiring_count', 1));
+
+        Carbon::setTestNow();
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\InventoryItem;
 use App\Models\Invoice;
 use App\Models\Patient;
 use Inertia\Inertia;
@@ -24,11 +25,24 @@ class DashboardController extends Controller
             ->get()
             ->filter(fn (Invoice $invoice) => $invoice->balance() > 0);
 
+        $activeItems = InventoryItem::query()
+            ->where('active', true)
+            ->withSum('movements as on_hand', 'quantity')
+            ->get();
+
         return Inertia::render('Dashboard', [
             'dueForRecall' => $dueForRecall,
             'outstanding' => [
                 'total' => round($outstandingInvoices->sum(fn (Invoice $invoice) => $invoice->balance()), 2),
                 'count' => $outstandingInvoices->count(),
+            ],
+            'inventory' => [
+                'low_count' => $activeItems
+                    ->filter(fn (InventoryItem $item) => (int) $item->on_hand <= $item->reorder_threshold)
+                    ->count(),
+                'expiring_count' => $activeItems
+                    ->filter(fn (InventoryItem $item) => $item->isExpiringSoon())
+                    ->count(),
             ],
         ]);
     }
