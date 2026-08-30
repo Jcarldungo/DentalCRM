@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DentalRecordController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\InventoryItemController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PrescriptionController;
@@ -98,6 +99,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::patch('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
     Route::post('/invoices/{invoice}/payments', [PaymentController::class, 'store'])->name('invoice-payments.store');
+
+    Route::get('/inventory', [InventoryItemController::class, 'index'])->name('inventory.index');
+    Route::get('/inventory/{inventoryItem}', [InventoryItemController::class, 'show'])->name('inventory.show');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');

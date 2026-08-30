@@ -58,4 +58,85 @@ class InventoryItemTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_guest_cannot_view_inventory(): void
+    {
+        $item = InventoryItem::factory()->create();
+
+        $this->get(route('inventory.index'))->assertRedirect(route('login'));
+        $this->get(route('inventory.show', $item))->assertRedirect(route('login'));
+    }
+
+    public function test_index_lists_active_items_with_computed_stock(): void
+    {
+        $this->actingUser();
+        $item = InventoryItem::factory()->create(['name' => 'Nitrile Gloves', 'reorder_threshold' => 5]);
+        StockMovement::factory()->create(['inventory_item_id' => $item->id, 'type' => 'received', 'quantity' => 3]);
+
+        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page
+            ->component('Inventory/Index')
+            ->has('items', 1)
+            ->where('items.0.name', 'Nitrile Gloves')
+            ->where('items.0.on_hand', 3)
+            ->where('items.0.stock_status', 'low'));
+    }
+
+    public function test_index_filters_low_expiring_and_archived(): void
+    {
+        Carbon::setTestNow('2026-08-30');
+        $this->actingUser();
+
+        $healthy = InventoryItem::factory()->create(['reorder_threshold' => 1]);
+        StockMovement::factory()->create(['inventory_item_id' => $healthy->id, 'quantity' => 50]);
+
+        $low = InventoryItem::factory()->create(['reorder_threshold' => 10]);
+        StockMovement::factory()->create(['inventory_item_id' => $low->id, 'quantity' => 2]);
+
+        $expiring = InventoryItem::factory()->create(['expiry_date' => '2026-09-05', 'reorder_threshold' => 0]);
+        StockMovement::factory()->create(['inventory_item_id' => $expiring->id, 'quantity' => 30]);
+
+        $archived = InventoryItem::factory()->archived()->create();
+
+        $this->get(route('inventory.index', ['filter' => 'low']))
+            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $low->id));
+        $this->get(route('inventory.index', ['filter' => 'expiring']))
+            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $expiring->id));
+        $this->get(route('inventory.index', ['filter' => 'archived']))
+            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $archived->id));
+        $this->get(route('inventory.index'))
+            ->assertInertia(fn ($page) => $page->has('items', 3));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_index_search_matches_name(): void
+    {
+        $this->actingUser();
+        InventoryItem::factory()->create(['name' => 'Nitrile Gloves']);
+        InventoryItem::factory()->create(['name' => 'Face Masks']);
+
+        $this->get(route('inventory.index', ['search' => 'glove']))
+            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.name', 'Nitrile Gloves'));
+    }
+
+    public function test_index_rejects_an_unknown_filter(): void
+    {
+        $this->actingUser();
+        $this->get(route('inventory.index', ['filter' => 'bogus']))->assertSessionHasErrors('filter');
+    }
+
+    public function test_show_projects_the_item_with_movements_newest_first(): void
+    {
+        $this->actingUser();
+        $item = InventoryItem::factory()->create();
+        StockMovement::factory()->create(['inventory_item_id' => $item->id, 'type' => 'received', 'quantity' => 20, 'occurred_on' => '2026-08-01']);
+        StockMovement::factory()->create(['inventory_item_id' => $item->id, 'type' => 'consumed', 'quantity' => -4, 'occurred_on' => '2026-08-20']);
+
+        $this->get(route('inventory.show', $item))->assertInertia(fn ($page) => $page
+            ->component('Inventory/Show')
+            ->where('item.on_hand', 16)
+            ->has('item.movements', 2)
+            ->where('item.movements.0.quantity', -4)
+            ->where('item.movements.1.quantity', 20));
+    }
 }
