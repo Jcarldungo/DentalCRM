@@ -55,4 +55,23 @@ class AuthEndpointThrottleTest extends TestCase
         $this->actingAs($user)->put('/password', ['current_password' => 'wrong'])
             ->assertStatus(429);
     }
+
+    public function test_different_authenticated_routes_have_independent_throttle_budgets(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->actingAs($user)->post('/confirm-password', ['password' => 'wrong']);
+        }
+        $this->actingAs($user)->post('/confirm-password', ['password' => 'wrong'])
+            ->assertStatus(429);
+
+        // A DIFFERENT route for the same user must not already be throttled —
+        // proves confirm-password and password.update don't share a bucket.
+        // With no prior password.update requests, it should fail normal
+        // validation (wrong current_password), not the throttle.
+        $this->actingAs($user)->put('/password', ['current_password' => 'wrong'])
+            ->assertStatus(302)
+            ->assertSessionHasErrors('current_password');
+    }
 }
