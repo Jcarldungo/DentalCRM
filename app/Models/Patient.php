@@ -62,6 +62,26 @@ class Patient extends Model
         return trim("{$this->first_name} {$this->last_name}");
     }
 
+    /**
+     * Does this patient have anything attached that a delete would take
+     * with it? Every one of these tables cascades on
+     * `patients.id`, and five of the six are documented append-only, so
+     * `DELETE /patients/{patient}` is the one route in the app that can
+     * erase clinical and financial history. `PatientController::destroy`
+     * refuses when this is true.
+     *
+     * Six `exists()` queries, but this runs once on a rare action.
+     */
+    public function hasClinicalOrBillingHistory(): bool
+    {
+        return $this->appointments()->exists()
+            || $this->dentalRecords()->exists()
+            || $this->toothConditions()->exists()
+            || $this->treatmentPlanItems()->exists()
+            || $this->prescriptions()->exists()
+            || $this->invoices()->exists();
+    }
+
     public static function dueForRecall(?\Carbon\Carbon $asOf = null): \Illuminate\Support\Collection
     {
         $asOf = $asOf ?? now();

@@ -129,8 +129,23 @@ class PatientController extends Controller
         return back();
     }
 
+    /**
+     * Deleting a patient cascades through appointments, dental records,
+     * tooth conditions, treatment-plan items, prescriptions, and the whole
+     * billing ledger including recorded payments — five of which the app
+     * documents as append-only. So this refuses once anything is attached,
+     * mirroring the guard `ProviderController::destroy` already applies.
+     * A patient created by mistake moments ago, with nothing attached, is
+     * still removable, which is the only use this route has left.
+     */
     public function destroy(Patient $patient): RedirectResponse
     {
+        if ($patient->hasClinicalOrBillingHistory()) {
+            return back()->withErrors([
+                'patient' => 'This patient has appointments, clinical records, or billing history and cannot be deleted.',
+            ]);
+        }
+
         $patient->delete();
 
         return back();
