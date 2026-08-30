@@ -65,10 +65,12 @@ database must exist before `php artisan test` will work.
   (sent from `AppointmentLookupController::send()`), and
   `AppointmentReminder.php` (sent from the
   `appointments:send-reminders` scheduled command — see Planning
-  workflow) are the only senders so far. Anything else that would need to
-  notify someone still surfaces in-app for staff to act on, unless it
-  specifically needs to reach a guest with no account — then follow the
-  same pattern.
+  workflow), plus Laravel's built-in `VerifyEmail` notification, now
+  genuinely sent on registration since `User` implements
+  `MustVerifyEmail`, are the only senders so far. Anything else that
+  would need to notify someone still surfaces in-app for staff to act
+  on, unless it specifically needs to reach a guest with no account —
+  then follow the same pattern.
   `AppointmentLookupLink` alone implements `ShouldQueue` (needed for its
   no-enumeration guarantee — see its docblock), so a queue worker must be
   running for that one link to actually go out; `composer run dev` already
@@ -81,7 +83,11 @@ database must exist before `php artisan test` will work.
   first name + last initial.
 - **Prices are in Philippine pesos** (`₱`).
 - **No roles and no seeded login.** Every authenticated user is an equal
-  front-desk staff member. Register at `/register`.
+  front-desk staff member. Register at `/register`, which requires a
+  shared clinic registration code (`REGISTRATION_CODE` env var /
+  `config('clinic.registration_code')`); a newly registered account must
+  then verify its email (sent via the `log` mailer in dev) before it can
+  reach any staff route.
   `db:seed --class=DemoSeeder` creates patients/providers/appointments
   plus exactly one throwaway staff `User` with random credentials (not
   intended as a working login — you still register at `/register`). That
@@ -321,3 +327,21 @@ aspirational, not a contract. Shipped so far:
   a `SELECT ... FOR UPDATE` on the item row (the `PaymentController`
   pattern) — correct for a single node, and the lock makes concurrent
   movements on one item safe.
+- The registration code is a single shared secret with no rotation
+  mechanism, no per-user attribution, and no expiry. If it leaks, it is
+  changed by editing the environment and restarting. Adequate for a
+  flat-staff model; a real clinic wanting to know who admitted whom
+  needs per-invite tokens.
+- `Password::defaults()` omits `->uncompromised()` to avoid an outbound
+  network call, so a password that is long and mixed but publicly
+  breached is still accepted.
+- `AuthenticateSession` logs out sibling sessions on a password change
+  but there is still no "sign out all devices" control, and no list of
+  active sessions.
+- Registration remains self-service. A clinic that wants staff accounts
+  provisioned centrally has no admin-side "create user" screen.
+- Per-IP login/auth throttling is only meaningful once trusted proxies
+  are configured (a deferred task) — behind an untrusted reverse proxy,
+  every request appears to come from one IP, turning the per-IP
+  throttle buckets into a whole-clinic lockout and a trivial DoS
+  vector.

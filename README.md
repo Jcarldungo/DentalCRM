@@ -30,6 +30,9 @@ php artisan serve  # in another
 
 Register an account at `/register` — there's no seeded login, since every
 signed-in user is an equal front-desk staff member (no roles in v1).
+Registration requires a shared clinic registration code
+(`REGISTRATION_CODE` in `.env`), and the new account must verify its
+email (sent via the `log` mailer in dev) before reaching any staff page.
 
 ## Tests
 
