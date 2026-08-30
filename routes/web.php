@@ -3,8 +3,8 @@
 use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DentalRecordController;
-use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\InventoryItemController;
+use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PrescriptionController;
