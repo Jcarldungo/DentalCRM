@@ -3,11 +3,13 @@
 namespace Database\Seeders;
 
 use App\Models\Appointment;
+use App\Models\InventoryItem;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Provider;
+use App\Models\StockMovement;
 use App\Models\TreatmentPlanItem;
 use App\Models\User;
 use Carbon\Carbon;
@@ -136,5 +138,74 @@ class DemoSeeder extends Seeder
             'patient_id' => $allPatients->random()->id,
             'created_by' => $staff->id,
         ]);
+
+        // --- Inventory fixtures: a stocked supply room so /inventory and
+        //     its dashboard tile are populated on a fresh seed. Additive.
+        $catalogue = [
+            ['Nitrile Gloves (M)', 'ppe', 'box', 6],
+            ['Composite Resin A2', 'consumable', 'syringe', 4],
+            ['Lidocaine 2% Cartridges', 'medication', 'box', 3],
+            ['Prophy Paste', 'consumable', 'tub', 5],
+            ['Alginate Impression Material', 'lab_material', 'bag', 2],
+            ['Assorted Diamond Burs', 'instrument', 'pack', 3],
+            ['Cotton Rolls', 'consumable', 'box', 8],
+            ['Surgical Face Masks', 'ppe', 'box', 6],
+            ['Fluoride Varnish', 'medication', 'box', 2],
+            ['Autoclave Pouches', 'consumable', 'box', 4],
+            ['Disposable Saliva Ejectors', 'consumable', 'bag', 5],
+            ['Patient Bibs', 'ppe', 'box', 4],
+        ];
+        $suppliers = ['Henry Schein', 'Patterson Dental', 'DentalKart', 'Benco Dental'];
+
+        foreach ($catalogue as [$name, $category, $unit, $threshold]) {
+            $item = InventoryItem::factory()->create([
+                'name' => $name,
+                'category' => $category,
+                'unit' => $unit,
+                'reorder_threshold' => $threshold,
+                'supplier' => $suppliers[array_rand($suppliers)],
+                'created_by' => $staff->id,
+            ]);
+
+            StockMovement::factory()->create([
+                'inventory_item_id' => $item->id,
+                'type' => 'received',
+                'quantity' => rand(3, 6) * 10,
+                'unit_cost' => rand(20, 400),
+                'occurred_on' => Carbon::now()->subDays(rand(30, 120))->toDateString(),
+                'created_by' => $staff->id,
+            ]);
+
+            foreach (range(1, rand(1, 3)) as $ignored) {
+                StockMovement::factory()->create([
+                    'inventory_item_id' => $item->id,
+                    'type' => 'consumed',
+                    'quantity' => -rand(2, 8),
+                    'unit_cost' => null,
+                    'occurred_on' => Carbon::now()->subDays(rand(1, 25))->toDateString(),
+                    'created_by' => $staff->id,
+                ]);
+            }
+        }
+
+        // Tune a few fixtures: two low on stock, one expiring, one archived.
+        $inventory = InventoryItem::orderBy('id')->get();
+
+        foreach ($inventory->take(2) as $item) {
+            $current = (int) $item->movements()->sum('quantity');
+            if ($current > 1) {
+                StockMovement::factory()->create([
+                    'inventory_item_id' => $item->id,
+                    'type' => 'consumed',
+                    'quantity' => -($current - 1),
+                    'unit_cost' => null,
+                    'occurred_on' => Carbon::now()->subDay()->toDateString(),
+                    'created_by' => $staff->id,
+                ]);
+            }
+        }
+
+        $inventory->get(2)?->update(['expiry_date' => Carbon::now()->addDays(15)->toDateString()]);
+        $inventory->get(3)?->update(['active' => false]);
     }
 }

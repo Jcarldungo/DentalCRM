@@ -224,6 +224,26 @@ aspirational, not a contract. Shipped so far:
   bars for breakdowns; stat tiles for headline numbers). Behind `auth`
   only — every staff member sees the whole report. Treatments-section
   analytics, recall-adherence, and any export (CSV/PDF) are deferred.
+- **Phase 7, sub-project 3** — inventory, specced at
+  `docs/superpowers/specs/2026-08-30-inventory-design.md` — a
+  standalone staff-facing stock module with no dependency on billing,
+  appointments, or clinical records. An `inventory_items` table
+  (mutable: name, category, unit, `reorder_threshold`, supplier,
+  item-level `expiry_date`, notes; `active` boolean for archive, no
+  hard delete) plus an append-only `stock_movements` ledger
+  (`received` / `consumed` / `adjustment` / `expired`, signed
+  `quantity`, optional `unit_cost` on receipts). An item's on-hand is
+  the derived `SUM(quantity)` — never stored — and a movement that
+  would drive it negative is rejected under a row lock (the
+  `PaymentController` pattern). `Admin\InventoryItemController`
+  (`index` / `show` / `store` / `update`, no `destroy`) and
+  `Admin\StockMovementController` (`store` only). Surfaces: a
+  `/inventory` index (filters All / Low stock / Expiring / Archived +
+  name search), `/inventory/{item}` with the movement history, and a
+  dashboard low/expiring tile. Nothing is transmitted — low-stock and
+  expiry are in-app only. Batch/lot tracking, valuation reporting, a
+  purchase-order workflow, and consumption↔appointment linkage are
+  deferred.
 
 ## Known gaps
 
@@ -277,3 +297,23 @@ aspirational, not a contract. Shipped so far:
 - Reports date ranges are UTC boundaries — no timezone handling, so a
   non-UTC clinic sees report days roll over off-midnight local. Matches
   the rest of the app.
+- Inventory on-hand is re-derived (`SUM(stock_movements.quantity)`) on
+  every read — the `/inventory` index, the item page, and the
+  dashboard tile — with no cached column. Same accepted O(n) pattern
+  as invoice balances and `Patient::dueForRecall()`.
+- `/inventory` loads every item (with a movement-sum subquery) and
+  filters/searches in PHP — no pagination, same as `patients.index` /
+  `invoices.index`.
+- Inventory expiry is a single item-level `expiry_date`, not
+  per-batch/lot — a clinic holding multiple lots of one item with
+  different expiries can't represent that. FEFO batch tracking is a
+  future slice.
+- Stock quantities are integers — no fractional units. The free-text
+  `unit` may read "ml" but movements are whole numbers.
+- `InventoryItem::CATEGORIES`, `StockMovement::TYPES`, and the
+  frontend-only common-units `<datalist>` list are duplicated in the
+  React `<select>`s — the same docblock-sync situation as the
+  appointment / treatment / invoice status sets.
+- `stock_movements.unit_cost` is captured on `received` movements but
+  nothing aggregates it — no inventory valuation or purchase-spend
+  reporting yet.
