@@ -41,6 +41,9 @@ class AppointmentController extends Controller
                     'preferred_time_of_day' => $appointment->preferred_time_of_day,
                     'notes' => $appointment->notes,
                 ]),
+            // So the calendar's status picker offers only legal moves
+            // rather than all eight and a validation error.
+            'transitions' => Appointment::TRANSITIONS,
         ]);
     }
 
@@ -142,6 +145,16 @@ class AppointmentController extends Controller
             ? Carbon::parse($validated['end_time'])
             : $appointment->end_time;
         $type = $validated['type'] ?? $appointment->type;
+
+        // Is this move legal at all? See Appointment::TRANSITIONS — the
+        // table forbids nonsense (nothing becomes `requested`; a completed
+        // visit cannot be un-happened) while keeping a one-step way back
+        // from every mis-click.
+        if (! Appointment::canTransition($appointment->status, $status)) {
+            throw ValidationException::withMessages([
+                'status' => "An appointment cannot move from {$appointment->status} to {$status}.",
+            ]);
+        }
 
         // Every board status, not just 'scheduled'. /queue and /workspace
         // both project provider->name and end_time unconditionally, so a

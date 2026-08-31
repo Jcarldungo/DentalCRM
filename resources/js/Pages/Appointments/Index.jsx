@@ -16,16 +16,6 @@ import { useRef, useState } from 'react';
 import { formatDate } from '../Patients/format';
 
 const TYPES = ['checkup', 'cleaning', 'procedure', 'other'];
-const STATUSES = [
-    'requested',
-    'scheduled',
-    'checked_in',
-    'in_treatment',
-    'completed',
-    'cancelled',
-    'no_show',
-    'declined',
-];
 
 /**
  * Event colours, by status.
@@ -46,7 +36,7 @@ const EVENT_COLOURS = {
     requested: { bg: '#f59e0b', border: '#d97706' },
 };
 
-export default function Index({ patients, providers, requests }) {
+export default function Index({ patients, providers, requests, transitions }) {
     const calendarRef = useRef(null);
     const [modal, setModal] = useState(null);
     const [declining, setDeclining] = useState(null);
@@ -86,7 +76,12 @@ export default function Index({ patients, providers, requests }) {
             type: props.type ?? 'checkup',
             status: props.status,
         });
-        setModal({ mode: 'edit', id: info.event.id, patientName: props.patientName });
+        setModal({
+            mode: 'edit',
+            id: info.event.id,
+            patientName: props.patientName,
+            from: props.status,
+        });
     }
 
     function onEventDrop(info) {
@@ -437,10 +432,15 @@ export default function Index({ patients, providers, requests }) {
                                 value={data.status}
                                 onChange={(e) => setData('status', e.target.value)}
                                 error={errors.status}
+                                hint="Only the moves this appointment can actually make are listed."
                             >
-                                {STATUSES.map((status) => (
+                                {/* The server's own transition table, so a
+                                    receptionist is never offered an option
+                                    that comes back as an error. */}
+                                {[modal.from, ...(transitions[modal.from] ?? [])].map((status) => (
                                     <option key={status} value={status}>
                                         {appointmentStatus(status).label}
+                                        {status === modal.from ? ' (no change)' : ''}
                                     </option>
                                 ))}
                             </SelectField>

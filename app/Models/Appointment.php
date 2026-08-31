@@ -35,6 +35,47 @@ class Appointment extends Model
      */
     public const BOARD_STATUSES = ['scheduled', 'checked_in', 'in_treatment', 'completed'];
 
+    /**
+     * Which statuses each status may move to.
+     *
+     * Any status could previously become any other, so a completed visit
+     * could be turned back into an unbooked request, and a declined one
+     * could be walked onto the board — both of which corrupt what
+     * /reports counts and neither of which any screen asks for.
+     *
+     * The table is deliberately permissive in one direction: every step a
+     * front-desk member can take by mis-clicking has a way back, one step
+     * at a time. Checked in by accident? Back to scheduled. Started
+     * treatment on the wrong patient? Back to checked in. Completed too
+     * early? Back to in treatment. A stricter machine would leave staff
+     * with a wrong record and no way to fix it, which is worse than the
+     * problem it solves.
+     *
+     * What it forbids is nonsense rather than mistakes:
+     *
+     * - Nothing may become `requested`. A request is what a guest creates
+     *   on the public site; a status change must not fabricate one.
+     * - `completed` steps back to `in_treatment` only — it cannot jump
+     *   straight to `scheduled`, which would erase that the visit happened.
+     * - `declined` may only be reconsidered into `scheduled`; it cannot
+     *   appear on the board directly.
+     *
+     * Staying put is always allowed: the update endpoint accepts a whole
+     * payload, so re-submitting the current status is a no-op, not a move.
+     *
+     * @var array<string, list<string>>
+     */
+    public const TRANSITIONS = [
+        'requested' => ['scheduled', 'declined', 'cancelled'],
+        'declined' => ['scheduled'],
+        'scheduled' => ['checked_in', 'in_treatment', 'completed', 'cancelled', 'no_show'],
+        'checked_in' => ['in_treatment', 'completed', 'scheduled', 'cancelled', 'no_show'],
+        'in_treatment' => ['completed', 'checked_in', 'cancelled'],
+        'completed' => ['in_treatment'],
+        'cancelled' => ['scheduled'],
+        'no_show' => ['scheduled', 'checked_in'],
+    ];
+
     protected $fillable = [
         'patient_id',
         'provider_id',
@@ -55,6 +96,12 @@ class Appointment extends Model
         'preferred_date' => 'date:Y-m-d',
         'reminder_sent_at' => 'datetime',
     ];
+
+    /** May this appointment move from $from to $to? Staying put always may. */
+    public static function canTransition(string $from, string $to): bool
+    {
+        return $from === $to || in_array($to, self::TRANSITIONS[$from] ?? [], true);
+    }
 
     public function patient(): BelongsTo
     {

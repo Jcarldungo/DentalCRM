@@ -253,9 +253,13 @@ class QueueTest extends TestCase
 
     /**
      * The crash path: a guest request has a null provider_id and end_time,
-     * and PATCHing it straight onto the board used to be accepted because
-     * assertSchedulable() only ran for 'scheduled'. /queue then dereferenced
-     * provider->name and 500'd for every staff member, for good.
+     * and PATCHing it onto the board used to be accepted, after which
+     * /queue dereferenced provider->name and 500'd for every staff member.
+     *
+     * Two guards now stand in the way, and this covers the outer one:
+     * Appointment::TRANSITIONS does not allow a request to jump straight
+     * onto the board at all. `scheduled` is a legal move, so it is covered
+     * separately below by the schedule-completeness guard.
      *
      * @return array<string, array{0: string}>
      */
@@ -265,46 +269,60 @@ class QueueTest extends TestCase
             'checked_in' => ['checked_in'],
             'in_treatment' => ['in_treatment'],
             'completed' => ['completed'],
-            'scheduled' => ['scheduled'],
         ];
     }
 
     #[DataProvider('boardStatusProvider')]
-    public function test_a_request_cannot_be_forced_onto_the_board_without_a_schedule(string $status): void
+    public function test_a_request_cannot_jump_straight_onto_the_board(string $status): void
     {
         $this->actingUser();
-        $request = Appointment::factory()->create([
-            'status' => 'requested',
-            'provider_id' => null,
-            'start_time' => null,
-            'end_time' => null,
-            'type' => null,
-        ]);
+        $request = $this->guestRequest();
 
-        $response = $this->patch(route('appointments.update', $request), ['status' => $status]);
+        $this->patch(route('appointments.update', $request), ['status' => $status])
+            ->assertSessionHasErrors('status');
 
-        $response->assertSessionHasErrors(['provider_id', 'start_time', 'end_time', 'type']);
         $this->assertSame('requested', $request->fresh()->status);
     }
 
-    public function test_a_start_time_alone_does_not_get_a_request_onto_the_board(): void
+    /**
+     * requested -> scheduled IS a legal transition, so the second guard has
+     * to catch it: an appointment cannot reach the board without a
+     * provider, a start, an end, and a type.
+     */
+    public function test_confirming_a_request_requires_a_complete_schedule(): void
     {
         $this->actingUser();
-        $request = Appointment::factory()->create([
-            'status' => 'requested',
-            'provider_id' => null,
-            'start_time' => null,
-            'end_time' => null,
-            'type' => null,
-        ]);
+        $request = $this->guestRequest();
+
+        $this->patch(route('appointments.update', $request), ['status' => 'scheduled'])
+            ->assertSessionHasErrors(['provider_id', 'start_time', 'end_time', 'type']);
+
+        $this->assertSame('requested', $request->fresh()->status);
+    }
+
+    public function test_a_start_time_alone_does_not_confirm_a_request(): void
+    {
+        $this->actingUser();
+        $request = $this->guestRequest();
 
         $this->patch(route('appointments.update', $request), [
-            'status' => 'checked_in',
+            'status' => 'scheduled',
             'start_time' => now()->setTime(9, 0)->toDateTimeString(),
             'end_time' => now()->setTime(9, 30)->toDateTimeString(),
         ])->assertSessionHasErrors(['provider_id', 'type']);
 
         $this->assertSame('requested', $request->fresh()->status);
+    }
+
+    private function guestRequest(): Appointment
+    {
+        return Appointment::factory()->create([
+            'status' => 'requested',
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+        ]);
     }
 
     /**
