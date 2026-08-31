@@ -1,5 +1,4 @@
 import Button from '@/Components/UI/Button';
-import Card from '@/Components/UI/Card';
 import Field, { TextareaField } from '@/Components/UI/Field';
 import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
 import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
@@ -47,9 +46,43 @@ function useSearch(initial) {
     return [term, setTerm];
 }
 
+/**
+ * The column names, once.
+ *
+ * Each row used to carry its own "Last visit / Next visit / Balance"
+ * labels, so a page of thirteen patients repeated the same three words
+ * thirty-nine times and the values had to be read past them. Below `sm`
+ * the row wraps into a stack and the per-row labels come back, because
+ * there is no column for a header to name.
+ *
+ * The action cell is a real, invisible copy of the row's buttons rather
+ * than a guessed width — it cannot drift out of alignment when the
+ * buttons change.
+ */
+function ListHeader() {
+    return (
+        <div className="hidden items-center gap-x-4 border-b border-slate-200 px-2 pb-2 text-xs font-medium uppercase tracking-wide text-slate-500 sm:flex">
+            <div className="min-w-0 flex-1">Patient</div>
+            <div className="flex shrink-0 items-center gap-x-6">
+                <div className="w-24">Last visit</div>
+                <div className="w-24">Next visit</div>
+                <div className="w-24">Balance</div>
+            </div>
+            <div className="invisible flex shrink-0 items-center gap-1" aria-hidden="true">
+                <Button variant="ghost" size="sm">
+                    Edit
+                </Button>
+                <Button variant="ghost" size="sm">
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 function PatientRow({ patient, summary, onEdit, onDelete }) {
     return (
-        <li className="group relative flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50 sm:flex-nowrap sm:px-5">
+        <li className="group relative flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-3 transition-colors hover:bg-slate-50 sm:flex-nowrap">
             <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                 <Link
                     href={route('patients.show', patient.id)}
@@ -76,19 +109,19 @@ function PatientRow({ patient, summary, onEdit, onDelete }) {
 
             <dl className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-1 text-xs sm:w-auto">
                 <div className="w-24">
-                    <dt className="text-slate-400">Last visit</dt>
+                    <dt className="text-slate-400 sm:hidden">Last visit</dt>
                     <dd className="tabular text-slate-700">
                         {summary?.last_visit ? formatDate(summary.last_visit) : '—'}
                     </dd>
                 </div>
                 <div className="w-24">
-                    <dt className="text-slate-400">Next visit</dt>
+                    <dt className="text-slate-400 sm:hidden">Next visit</dt>
                     <dd className="tabular text-slate-700">
                         {summary?.next_visit ? formatDate(summary.next_visit) : '—'}
                     </dd>
                 </div>
                 <div className="w-24">
-                    <dt className="text-slate-400">Balance</dt>
+                    <dt className="text-slate-400 sm:hidden">Balance</dt>
                     <dd
                         className={`tabular font-medium ${
                             summary?.balance > 0 ? 'text-amber-700' : 'text-slate-500'
@@ -210,7 +243,7 @@ export default function Index({ patients, summaries, filters }) {
                     )}
                 </div>
 
-                <Card>
+                <div className="border-y border-slate-200 py-1">
                     {patients.data.length === 0 ? (
                         filters.search ? (
                             <EmptyState
@@ -236,19 +269,22 @@ export default function Index({ patients, summaries, filters }) {
                             />
                         )
                     ) : (
-                        <ul className="divide-y divide-slate-200">
-                            {patients.data.map((patient) => (
-                                <PatientRow
-                                    key={patient.id}
-                                    patient={patient}
-                                    summary={summaries[patient.id]}
-                                    onEdit={() => openEdit(patient)}
-                                    onDelete={() => setConfirming(patient)}
-                                />
-                            ))}
-                        </ul>
+                        <>
+                            <ListHeader />
+                            <ul className="divide-y divide-slate-100">
+                                {patients.data.map((patient) => (
+                                    <PatientRow
+                                        key={patient.id}
+                                        patient={patient}
+                                        summary={summaries[patient.id]}
+                                        onEdit={() => openEdit(patient)}
+                                        onDelete={() => setConfirming(patient)}
+                                    />
+                                ))}
+                            </ul>
+                        </>
                     )}
-                </Card>
+                </div>
 
                 <Pagination paginator={patients} label="Patient list pages" />
 

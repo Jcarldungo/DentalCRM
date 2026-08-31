@@ -138,10 +138,40 @@
     color: theme('colors.brand.700');
 }
 
+/*
+ * A 45-minute block is about 37px tall, and an event carries two lines:
+ * the time, then "Patient — Type". At 12px with the inherited 1.5
+ * line-height those two lines need 38px, so every multi-line event had
+ * its second line sheared off through the descenders. The tighter
+ * line-height buys the room back; the clipping rules below make the
+ * failure mode on a genuinely short event an ellipsis rather than a
+ * half-rendered word.
+ */
 .fc .fc-event {
     border-radius: theme('borderRadius.md');
-    padding: 1px 2px;
+    padding: 1px 3px;
     font-size: theme('fontSize.xs[0]');
+    line-height: 1.3;
+}
+
+.fc .fc-timegrid-event .fc-event-main {
+    overflow: hidden;
+}
+
+.fc .fc-event-time {
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.fc .fc-event-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A 30-minute slot at the default height cannot show a two-line event at
+   all. This is the smallest bump that fits one. */
+.fc .fc-timegrid-slot {
+    height: 1.75rem;
 }
 
 .fc .fc-event:focus-visible {

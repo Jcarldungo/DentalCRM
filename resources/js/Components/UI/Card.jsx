@@ -1,17 +1,17 @@
 /**
- * The staff app's one surface.
+ * A discrete object — an invoice, a patient in the queue, a form.
  *
- * A hairline border carries the edge and `shadow-card` lifts it off the
- * `slate-50` page — deliberately two very shallow layers rather than one
- * soft drop shadow, because clinical pages stack surfaces close together
- * and at that density a real shadow turns the gap between two cards into
- * grey haze while the 1px line stays readable.
+ * Elevation is declared once: a hairline border and no shadow. Carrying
+ * both meant neither read, and a 1px line under a soft shadow is the
+ * stock admin card that made every page look the same weight as every
+ * other. A card is now for something that genuinely is an object; the
+ * page's own structure is `Section` — a heading and a rule, no box.
  */
 export default function Card({ as: Tag = 'div', className = '', children, ...props }) {
     return (
         <Tag
             {...props}
-            className={`rounded-2xl border border-slate-200 bg-white shadow-card ${className}`}
+            className={`rounded-2xl border border-slate-200 bg-white ${className}`}
         >
             {children}
         </Tag>

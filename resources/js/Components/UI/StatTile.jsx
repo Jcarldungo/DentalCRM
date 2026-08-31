@@ -3,93 +3,97 @@ import { Link } from '@inertiajs/react';
 /**
  * A headline number.
  *
- * The one tinted surface in the staff app. Everything else is white on
- * `slate-50`, which is what lets four soft washes of colour at the top of
- * a page read as "these are the numbers" instead of as decoration — and
- * what stops the tint being reached for anywhere else.
+ * These used to be tinted, shadowed, icon-bearing cards — four of them in
+ * a row across the top of a page, which is the stock admin-dashboard
+ * opening and read as one. The number was `text-2xl`, smaller than the
+ * page title above it, so the thing the page exists to tell you was the
+ * fourth most prominent element on screen.
  *
- * `tone` is chosen for what the number *means*, never for variety: the
- * five here are the same semantic set as the status tones in statuses.js,
- * so a count of things in treatment is `success` on the dashboard for the
- * same reason the status pill is.
- *
- * The Dashboard and Reports both used to draw their own version of this;
- * a tile is one component so the two pages cannot drift apart again.
+ * Now the number *is* the tile: `text-4xl`, and the only colour on it.
+ * Colour is the status tone from statuses.js applied to the figure
+ * itself, so it reads as data rather than as a decorative wash behind
+ * data. Structure comes from the hairlines StatRow draws, not from a box
+ * per number.
  */
-const TONES = {
-    neutral: {
-        surface: 'border-slate-200 bg-white',
-        chip: 'bg-slate-100 text-slate-500',
-        value: 'text-slate-900',
-    },
-    info: {
-        surface: 'border-brand-100 bg-brand-50',
-        chip: 'bg-brand-100 text-brand-700',
-        value: 'text-brand-950',
-    },
-    progress: {
-        surface: 'border-violet-100 bg-violet-50',
-        chip: 'bg-violet-100 text-violet-700',
-        value: 'text-violet-950',
-    },
-    success: {
-        surface: 'border-emerald-100 bg-emerald-50',
-        chip: 'bg-emerald-100 text-emerald-700',
-        value: 'text-emerald-950',
-    },
-    warning: {
-        surface: 'border-amber-100 bg-amber-50',
-        chip: 'bg-amber-100 text-amber-800',
-        value: 'text-amber-950',
-    },
-    danger: {
-        surface: 'border-rose-100 bg-rose-50',
-        chip: 'bg-rose-100 text-rose-700',
-        value: 'text-rose-950',
-    },
+const VALUE_TONES = {
+    neutral: 'text-slate-900',
+    info: 'text-brand-700',
+    progress: 'text-violet-700',
+    success: 'text-emerald-700',
+    warning: 'text-amber-700',
+    danger: 'text-rose-700',
+    muted: 'text-slate-400',
 };
+
+/**
+ * The rule grid the stats sit in.
+ *
+ * `gap-px` over a slate background rather than `divide-x`: these wrap to
+ * two columns on a phone, and `divide-x` puts a stray rule down the left
+ * of every wrapped row. The gap technique is correct at any column count
+ * and any number of children.
+ */
+const COLUMNS = {
+    2: 'sm:grid-cols-2',
+    3: 'sm:grid-cols-3',
+    4: 'sm:grid-cols-4',
+};
+
+export function StatRow({ columns = 4, className = '', children }) {
+    return (
+        // One contained band with hairline divisions, not four boxes and
+        // not four naked columns. Bare rules over a white page left the
+        // numbers floating with nothing holding them together; a single
+        // bordered object with internal rules gives the row an edge
+        // without giving every figure its own card.
+        <div
+            className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 ${
+                COLUMNS[columns] ?? COLUMNS[4]
+            } ${className}`}
+        >
+            {children}
+        </div>
+    );
+}
 
 export default function StatTile({
     label,
     value,
     sub,
-    icon: Icon,
     tone = 'neutral',
     href,
     className = '',
     ...props
 }) {
-    const palette = TONES[tone] ?? TONES.neutral;
-
-    // A tile that links somewhere is the entry point to the list it
-    // counts, so the whole tile is the target rather than the number
-    // carrying a separate link inside it.
+    // A stat that links somewhere is the entry point to the list it
+    // counts, so the whole cell is the target.
     const Tag = href ? Link : 'div';
 
     return (
         <Tag
             {...props}
             {...(href ? { href } : {})}
-            className={`rounded-2xl border p-4 shadow-card ${palette.surface} ${
+            className={`bg-white px-5 py-5 ${
                 href
-                    ? 'block transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2'
+                    ? 'block transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500'
                     : ''
             } ${className}`}
         >
-            <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 truncate text-xs font-medium text-slate-600">{label}</p>
-                {Icon && (
-                    <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${palette.chip}`}
-                    >
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                )}
-            </div>
-            <p className={`tabular mt-3 text-2xl font-semibold leading-none ${palette.value}`}>
+            <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                {label}
+            </p>
+            {/* 48px. At 36 the figure was the same visual weight as the
+                page title two inches above it, so nothing on the screen
+                claimed to be the thing the page is for. A headline number
+                has to actually behave like a headline. */}
+            <p
+                className={`tabular mt-2.5 text-5xl font-semibold leading-none tracking-tight ${
+                    VALUE_TONES[tone] ?? VALUE_TONES.neutral
+                }`}
+            >
                 {value}
             </p>
-            {sub && <p className="mt-1.5 truncate text-xs text-slate-500">{sub}</p>}
+            {sub && <p className="mt-2.5 truncate text-xs text-slate-500">{sub}</p>}
         </Tag>
     );
 }

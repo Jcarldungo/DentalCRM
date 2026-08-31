@@ -14,12 +14,23 @@ export function PageContainer({ className = '', children }) {
     );
 }
 
+/**
+ * The page title.
+ *
+ * `text-3xl` with tight tracking. The app's whole type scale used to sit
+ * between 12px and 24px, which is why every screen read as one flat
+ * grey field — nothing on it was confident about being the most
+ * important thing. The jump from 14px body to 30px title is the scale
+ * doing its job.
+ */
 export function PageHeader({ title, description, actions, children, className = '' }) {
     return (
-        <div className={`mb-6 flex flex-wrap items-end justify-between gap-3 ${className}`}>
+        <div className={`mb-8 flex flex-wrap items-end justify-between gap-3 ${className}`}>
             <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-                {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+                <h1 className="truncate text-3xl font-semibold tracking-tight text-slate-900">
+                    {title}
+                </h1>
+                {description && <p className="mt-1.5 text-sm text-slate-500">{description}</p>}
                 {children}
             </div>
             {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -27,7 +38,34 @@ export function PageHeader({ title, description, actions, children, className = 
     );
 }
 
-/** A section heading inside a page — one level below PageHeader. */
+/**
+ * The page's structural unit: a heading, a rule, and its content.
+ *
+ * This replaces reaching for a `Card` every time a page needs to group
+ * something. A card is a box, and a page built entirely from boxes has
+ * no hierarchy — the dashboard was nine white rectangles of equal
+ * weight. A rule and generous space above the heading separate sections
+ * without adding another edge to look at.
+ *
+ * More room above the heading than below it, so a section reads as
+ * belonging to what follows rather than floating between two blocks.
+ */
+export function Section({ title, description, actions, children, className = '' }) {
+    return (
+        <section className={`mt-10 first:mt-0 ${className}`}>
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-slate-200 pb-3">
+                <div className="min-w-0">
+                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
+                    {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+                </div>
+                {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+            </div>
+            {children}
+        </section>
+    );
+}
+
+/** A heading one level below Section, for a block inside one. */
 export function SectionHeading({ title, count, actions, className = '' }) {
     return (
         <div className={`mb-3 flex items-center justify-between gap-3 ${className}`}>

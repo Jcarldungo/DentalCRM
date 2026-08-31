@@ -1,7 +1,8 @@
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageContainer, PageHeader } from '@/Components/UI/Page';
-import StatTile from '@/Components/UI/StatTile';
+import StatTile, { StatRow } from '@/Components/UI/StatTile';
+import { humanise } from '@/Components/UI/statuses';
 import { formatPeso } from '@/Pages/Patients/format';
 import RangePicker from './RangePicker';
 import { TrendChart, MiniBars } from './charts';
@@ -23,7 +24,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
 
                 <div className="space-y-10">
                     <Section title="Revenue">
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <StatRow columns={3}>
                             <StatTile label="Collected" value={formatPeso(revenue.collected_total)} sub="payments received" />
                             <StatTile label="Invoiced" value={formatPeso(revenue.invoiced_total)} sub="net of discount" />
                             <StatTile
@@ -31,7 +32,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                                 value={formatPeso(revenue.outstanding.total)}
                                 sub={`${revenue.outstanding.count} open invoice${revenue.outstanding.count === 1 ? '' : 's'} · as of ${revenue.outstanding.as_of}`}
                             />
-                        </div>
+                        </StatRow>
 
                         <Card title="Collected over time">
                             <TrendChart
@@ -53,7 +54,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                         <Card title="Payment method mix">
                             <MiniBars
                                 rows={revenue.method_mix.map((m) => ({
-                                    label: m.label.replace('_', ' '),
+                                    label: humanise(m.label),
                                     value: m.value,
                                     sub: `${m.count} payment${m.count === 1 ? '' : 's'}`,
                                 }))}
@@ -63,12 +64,12 @@ export default function Index({ meta, revenue, appointments, patients }) {
                     </Section>
 
                     <Section title="Appointments">
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <StatRow columns={4}>
                             <StatTile label="Total" value={appointments.total} />
                             <StatTile label="Completion" value={pct(appointments.rates.completion)} />
                             <StatTile label="Cancellation" value={pct(appointments.rates.cancellation)} />
                             <StatTile label="No-show" value={pct(appointments.rates.no_show)} />
-                        </div>
+                        </StatRow>
 
                         <Card title="Volume over time">
                             <TrendChart
@@ -84,7 +85,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                             </Card>
                             <Card title="By type">
                                 <MiniBars
-                                    rows={appointments.by_type.map((t) => ({ label: t.label, value: t.value }))}
+                                    rows={appointments.by_type.map((t) => ({ label: humanise(t.label), value: t.value }))}
                                     valueFormat="count"
                                 />
                             </Card>
@@ -100,12 +101,12 @@ export default function Index({ meta, revenue, appointments, patients }) {
                     </Section>
 
                     <Section title="Patients">
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <StatRow columns={4}>
                             <StatTile label="New patients" value={patients.new_total} />
                             <StatTile label="Returning" value={patients.seen.returning} />
                             <StatTile label="First visit" value={patients.seen.first_visit} />
                             <StatTile label="No-show patients" value={patients.no_show_patients.count} />
-                        </div>
+                        </StatRow>
 
                         <Card title="New patients over time">
                             <TrendChart

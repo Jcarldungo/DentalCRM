@@ -97,8 +97,8 @@ function QueueCard({ appointment, column, now, children }) {
     return (
         <Card
             as="li"
-            className={`p-3 transition-colors ${column.muted ? 'bg-slate-50' : ''} ${
-                column.emphasis ? 'border-emerald-200 bg-emerald-50/40' : ''
+            className={`bg-white p-3 transition-colors ${
+                column.emphasis ? 'border-emerald-200' : ''
             }`}
         >
             <div className="flex items-start justify-between gap-2">
@@ -127,23 +127,29 @@ function QueueCard({ appointment, column, now, children }) {
 function Column({ column, appointments, now, children }) {
     return (
         <section
-            className={`flex min-w-0 flex-col rounded-2xl ${
-                column.emphasis ? 'bg-emerald-50/50 p-2 ring-1 ring-emerald-200' : ''
+            /* A board needs visible lanes. With no surface at all the four
+               columns were four patches of white page and the cards had
+               nothing to sit in; the tinted lane is what makes this read
+               as a board rather than as four stacked lists. */
+            className={`flex min-w-0 flex-col rounded-xl p-3 ${
+                column.emphasis ? 'bg-emerald-50' : 'bg-slate-50'
             }`}
             aria-label={column.title}
         >
-            <header className="mb-2.5 flex items-center gap-2 px-1">
+            <header
+                className={`mb-3 flex items-center gap-2 border-b pb-2 ${
+                    column.emphasis ? 'border-emerald-200' : 'border-slate-200'
+                }`}
+            >
                 <span className={`h-2 w-2 shrink-0 rounded-full ${column.accent}`} aria-hidden="true" />
                 <h2 className="text-sm font-semibold text-slate-900">{column.title}</h2>
-                <span className="tabular ms-auto rounded-full bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                <span className="tabular ms-auto text-sm font-semibold text-slate-400">
                     {appointments.length}
                 </span>
             </header>
 
             {appointments.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-                    {column.hint}
-                </p>
+                <p className="py-8 text-center text-xs text-slate-400">{column.hint}</p>
             ) : (
                 <ul className="space-y-2">{children}</ul>
             )}
@@ -230,7 +236,7 @@ export default function Index({ patients, providers, todaysSchedule, waiting, no
                     }
                 />
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid min-h-[16rem] gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {COLUMNS.map((column) => (
                         <Column key={column.key} column={column} appointments={boards[column.key]} now={now}>
                             {boards[column.key].map((appointment) => (

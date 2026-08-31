@@ -328,7 +328,12 @@ export default function AuthenticatedLayout({ title, breadcrumbs, actions, navBa
     const trail = breadcrumbs ?? (title ? [{ label: title }] : []);
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        // White, not `slate-50`. The grey page existed to make white cards
+        // float, and floating white cards on grey is the admin-panel look
+        // the app is moving away from. With structure carried by rules and
+        // space, the content sits directly on the page and the dark rail is
+        // the only frame it needs.
+        <div className="min-h-screen bg-white">
             <a
                 href="#main"
                 className="sr-only z-[70] rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"

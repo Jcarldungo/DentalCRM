@@ -34,7 +34,11 @@ export default function RangePicker({ meta }) {
     }
 
     return (
-        <div className="sticky top-16 z-20 -mx-4 mb-6 border-y border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
+        // Opaque, not `bg-slate-50/95 backdrop-blur`: this bar sits over a
+        // slate-50 page, so a 95% wash of the same colour let every card it
+        // passed ghost through it while scrolling. White plus the card
+        // elevation reads as a toolbar floating above the report instead.
+        <div className="sticky top-16 z-20 -mx-4 mb-6 border-y border-slate-200 bg-white px-4 py-3 shadow-card sm:mx-0 sm:rounded-2xl sm:border">
             <div role="group" aria-label="Report date range" className="flex flex-wrap items-center gap-1.5">
                 {PRESETS.map(([value, text]) => (
                     <Button

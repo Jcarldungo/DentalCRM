@@ -179,8 +179,14 @@ export default function Index({ patients, providers, requests, transitions }) {
                                             {request.preferred_time_of_day}) ·{' '}
                                             {request.dentist_preference ?? 'No dentist preference'}
                                         </p>
+                                        {/* A rule, not a filled box: as a
+                                            rounded slate-50 rectangle this
+                                            read as a disabled text input
+                                            sitting in a read-only list. It is
+                                            the patient's own words, so it is
+                                            set as a quotation. */}
                                         {request.notes && (
-                                            <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                            <p className="mt-2 border-s border-slate-300 ps-3 text-sm text-slate-600">
                                                 {request.notes}
                                             </p>
                                         )}
