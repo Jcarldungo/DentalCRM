@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import Card, { CardBody, CardHeader } from '@/Components/UI/Card';
+import Card, { CardBody } from '@/Components/UI/Card';
 import { PageContainer, PageHeader } from '@/Components/UI/Page';
 import { Head } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
