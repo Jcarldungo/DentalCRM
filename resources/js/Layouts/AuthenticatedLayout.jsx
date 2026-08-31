@@ -17,6 +17,7 @@ import {
     LogOut,
     UserRound,
     ChevronDown,
+    History,
 } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { Menu, MenuButton, MenuItem, MenuItems, Transition } from '@headlessui/react';
@@ -58,6 +59,7 @@ const NAV_GROUPS = [
             { name: 'Reports', route: 'reports.index', match: 'reports.*', icon: BarChart3 },
             { name: 'Inventory', route: 'inventory.index', match: 'inventory.*', icon: Boxes },
             { name: 'Providers', route: 'providers.index', match: 'providers.*', icon: UserCog },
+            { name: 'Activity', route: 'activity.index', match: 'activity.*', icon: History },
         ],
     },
 ];

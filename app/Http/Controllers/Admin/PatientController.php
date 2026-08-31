@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Appointment;
 use App\Models\DentalRecord;
 use App\Models\Invoice;
@@ -266,12 +267,15 @@ class PatientController extends Controller
     public function destroy(Patient $patient): RedirectResponse
     {
         if ($patient->hasClinicalOrBillingHistory()) {
+            AuditLog::record('patient.delete_refused', $patient, $patient->full_name);
+
             return back()->withErrors([
                 'patient' => 'This patient has appointments, clinical records, or billing history and cannot be deleted.',
             ]);
         }
 
         $name = $patient->full_name;
+        AuditLog::record('patient.deleted', $patient, $name);
         $patient->delete();
 
         return back()->with('success', "{$name} was removed.");

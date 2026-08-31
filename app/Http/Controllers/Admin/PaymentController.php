@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Invoice;
 use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
@@ -67,6 +68,11 @@ class PaymentController extends Controller
             $payment->created_by = $userId;
             $payment->save();
         });
+
+        AuditLog::record('payment.recorded', $invoice, $invoice->number(), [
+            'amount' => (float) $validated['amount'],
+            'method' => $validated['method'],
+        ]);
 
         return back()->with('success', 'Payment recorded.');
     }

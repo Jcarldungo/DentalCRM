@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
@@ -164,6 +165,13 @@ class InvoiceController extends Controller
             }
             $locked->save();
         });
+
+        AuditLog::record(
+            $to === 'issued' ? 'invoice.issued' : 'invoice.voided',
+            $invoice,
+            $invoice->number(),
+            ['total' => $invoice->fresh()->load('items')->total()],
+        );
 
         return back();
     }

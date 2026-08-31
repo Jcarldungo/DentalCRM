@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Provider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,10 +48,13 @@ class ProviderController extends Controller
     public function destroy(Provider $provider): RedirectResponse
     {
         if ($provider->appointments()->exists()) {
+            AuditLog::record('provider.delete_refused', $provider, $provider->name);
+
             return back()->withErrors(['provider' => 'This provider has appointments and cannot be deleted. Mark them inactive instead.']);
         }
 
         $name = $provider->name;
+        AuditLog::record('provider.deleted', $provider, $name);
         $provider->delete();
 
         return back()->with('success', "{$name} was removed.");

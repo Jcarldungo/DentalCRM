@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Patient;
 use Carbon\Carbon;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -96,43 +95,42 @@ class BookingController extends Controller
     }
 
     /**
-     * The lookup and the insert used to be a plain check-then-act, so two
-     * concurrent bookings for the same new email created two patient rows —
-     * after which ->first() silently returned the lower id and the signed
-     * lookup page omitted the other row's appointments entirely.
+     * Resolve the booking to a patient, doing the same work either way.
      *
-     * firstOrCreate closes the window at the application level and the
-     * unique index on patients.email closes it at the schema level; the
-     * retry covers the case where the other request won the race between
-     * our SELECT and our INSERT.
+     * This used to branch: SELECT, and only INSERT if that missed. The
+     * shape of that is a timing oracle — submit `victim@example.com`, time
+     * the response, and the presence or absence of an INSERT tells you
+     * whether that address is a patient here.
      *
-     * An existing patient's name, phone, and date of birth are deliberately
-     * never overwritten from a guest booking.
+     * Now both paths run exactly one INSERT and one SELECT. The insert is
+     * `insertOrIgnore`, which the unique index on patients.email turns
+     * into a no-op when the address is already known, so an existing
+     * patient's name, phone, and date of birth are still never overwritten
+     * — and the statement issued is identical regardless.
+     *
+     * That also removes the check-then-act entirely: two concurrent
+     * bookings for the same new email cannot create two patient rows,
+     * because only one insert can win the index.
+     *
+     * `insertOrIgnore` bypasses the model, so timestamps are set by hand.
      */
     private function findOrCreatePatient(string $name, string $email, string $phone): Patient
     {
         $email = Str::lower(trim($email));
-
-        // Compared with an explicit LOWER() rather than relying on the column's
-        // collation happening to be case-insensitive.
-        $existing = Patient::whereRaw('LOWER(email) = ?', [$email])->first();
-
-        if ($existing) {
-            return $existing;
-        }
-
         [$firstName, $lastName] = $this->splitName($name);
 
-        try {
-            return Patient::create([
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'email' => $email,
-                'phone' => $phone,
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            return Patient::whereRaw('LOWER(email) = ?', [$email])->firstOrFail();
-        }
+        Patient::insertOrIgnore([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $email,
+            'phone' => $phone,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Compared with an explicit LOWER() rather than relying on the
+        // column's collation happening to be case-insensitive.
+        return Patient::whereRaw('LOWER(email) = ?', [$email])->firstOrFail();
     }
 
     /**

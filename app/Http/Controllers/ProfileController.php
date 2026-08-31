@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\AuditLog;
 use App\Models\DentalRecord;
 use App\Models\InventoryItem;
 use App\Models\Invoice;
@@ -93,6 +94,10 @@ class ProfileController extends Controller
                 ]);
             }
         }
+
+        // Recorded before the delete: user_id nulls out with the
+        // account, but actor_name and the row itself survive it.
+        AuditLog::record('account.deleted', $user, $user->name);
 
         DB::transaction(fn () => $user->delete());
 

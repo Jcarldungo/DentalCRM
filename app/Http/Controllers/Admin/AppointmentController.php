@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\AppointmentConfirmed;
 use App\Mail\AppointmentDeclined;
+use App\Models\AuditLog;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Provider;
@@ -169,6 +170,15 @@ class AppointmentController extends Controller
         }
 
         $appointment->update($validated);
+
+        if ($appointment->status !== $originalStatus) {
+            AuditLog::record(
+                'appointment.status_changed',
+                $appointment,
+                $appointment->patient->full_name,
+                ['from' => $originalStatus, 'to' => $appointment->status],
+            );
+        }
 
         $this->notifyPatientOfRequestOutcome($originalStatus, $appointment);
 

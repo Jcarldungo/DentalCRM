@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Patient;
 use App\Models\Prescription;
 use Illuminate\Http\RedirectResponse;
@@ -64,6 +65,10 @@ class PrescriptionController extends Controller
         $prescription->discontinued_at = now();
         $prescription->discontinued_reason = $validated['discontinued_reason'] ?? null;
         $prescription->save();
+
+        AuditLog::record('prescription.discontinued', $prescription, $prescription->medication, [
+            'patient_id' => $prescription->patient_id,
+        ]);
 
         return back()->with('success', 'Prescription discontinued.');
     }

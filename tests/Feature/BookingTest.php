@@ -8,6 +8,7 @@ use App\Models\Provider;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -424,5 +425,84 @@ class BookingTest extends TestCase
         Patient::factory()->count(3)->create(['email' => null]);
 
         $this->assertSame(3, Patient::whereNull('email')->count());
+    }
+
+    /**
+     * The endpoint used to branch: SELECT, and INSERT only on a miss. That
+     * shape is a timing oracle — submit an address, time the response, and
+     * the presence or absence of an INSERT says whether it is a patient
+     * here.
+     *
+     * Asserted on the statements issued, which is deterministic, rather
+     * than on wall-clock timing, which is not.
+     */
+    public function test_a_known_and_an_unknown_email_issue_the_same_statements(): void
+    {
+        Patient::factory()->create(['email' => 'known@example.com']);
+
+        $shapes = [];
+
+        foreach (['known@example.com', 'stranger@example.com'] as $email) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $this->post(route('bookings.store'), $this->validPayload([
+                'email' => $email,
+                'preferred_date' => $this->openDate(),
+            ]))->assertRedirect();
+
+            $shapes[$email] = collect(DB::getQueryLog())
+                ->map(fn ($entry) => preg_replace('/\s+/', ' ', strtolower(substr($entry['query'], 0, 40))))
+                ->all();
+
+            DB::disableQueryLog();
+        }
+
+        $this->assertSame(
+            $shapes['known@example.com'],
+            $shapes['stranger@example.com'],
+            'a booking for a known email must issue the same statements as one for a stranger',
+        );
+    }
+
+    public function test_a_booking_for_a_known_email_still_reuses_that_patient(): void
+    {
+        $existing = Patient::factory()->create([
+            'email' => 'known@example.com',
+            'first_name' => 'Angela',
+            'last_name' => 'Reyes',
+            'phone' => '09170000000',
+        ]);
+
+        $this->post(route('bookings.store'), $this->validPayload([
+            'email' => 'known@example.com',
+            'name' => 'Someone Else',
+            'phone' => '09999999999',
+        ]))->assertRedirect();
+
+        $this->assertSame(1, Patient::where('email', 'known@example.com')->count());
+        $this->assertSame($existing->id, Appointment::latest('id')->first()->patient_id);
+
+        // An existing patient's own details are never overwritten by a guest.
+        $fresh = $existing->fresh();
+        $this->assertSame('Angela', $fresh->first_name);
+        $this->assertSame('Reyes', $fresh->last_name);
+        $this->assertSame('09170000000', $fresh->phone);
+    }
+
+    public function test_a_booking_for_a_new_email_creates_exactly_one_patient(): void
+    {
+        $this->post(route('bookings.store'), $this->validPayload([
+            'email' => 'stranger@example.com',
+            'name' => 'Rico Santos',
+        ]))->assertRedirect();
+
+        $patients = Patient::where('email', 'stranger@example.com')->get();
+
+        $this->assertCount(1, $patients);
+        $this->assertSame('Rico', $patients->first()->first_name);
+        $this->assertSame('Santos', $patients->first()->last_name);
+        $this->assertNotNull($patients->first()->created_at, 'insertOrIgnore must still set timestamps');
+        $this->assertNotNull($patients->first()->updated_at);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\StockMovement;
 use Illuminate\Http\RedirectResponse;
@@ -130,7 +131,16 @@ class InventoryItemController extends Controller
             $validated['reorder_threshold'] = 0;
         }
 
+        $wasActive = $inventoryItem->active;
         $inventoryItem->update($validated);
+
+        if ($wasActive !== $inventoryItem->fresh()->active) {
+            AuditLog::record(
+                $inventoryItem->fresh()->active ? 'inventory.restored' : 'inventory.archived',
+                $inventoryItem,
+                $inventoryItem->name,
+            );
+        }
 
         return back()->with('success', 'Item saved.');
     }

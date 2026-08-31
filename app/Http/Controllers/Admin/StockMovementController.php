@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\StockMovement;
 use Illuminate\Http\RedirectResponse;
@@ -75,6 +76,11 @@ class StockMovementController extends Controller
             $movement->created_by = $userId;
             $movement->save();
         });
+
+        AuditLog::record('stock.recorded', $inventoryItem, $inventoryItem->name, [
+            'type' => $validated['type'],
+            'quantity' => $signed,
+        ]);
 
         return back()->with('success', 'Stock movement recorded.');
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DentalRecordController;
@@ -111,6 +112,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/inventory/{inventoryItem}', [InventoryItemController::class, 'update'])->name('inventory.update');
     Route::get('/inventory/{inventoryItem}', [InventoryItemController::class, 'show'])->name('inventory.show');
     Route::post('/inventory/{inventoryItem}/movements', [StockMovementController::class, 'store'])->name('inventory-movements.store');
+
+    Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
 
     Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
     Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');
