@@ -7,6 +7,7 @@ use App\Models\Appointment;
 use App\Models\InventoryItem;
 use App\Models\Invoice;
 use App\Models\Patient;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -107,35 +108,30 @@ class DashboardController extends Controller
         ])->values();
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Two aggregates, not a full read of every issued invoice with its
+     * items and payments.
+     *
+     * @return array<string, mixed>
+     */
     private function outstanding(): array
     {
-        $invoices = Invoice::where('status', 'issued')
-            ->with(['items', 'payments'])
-            ->get()
-            ->filter(fn (Invoice $invoice) => $invoice->balance() > 0);
-
         return [
-            'total' => round($invoices->sum(fn (Invoice $invoice) => $invoice->balance()), 2),
-            'count' => $invoices->count(),
+            'total' => round((float) Invoice::outstanding()->sum(DB::raw(Invoice::balanceSql())), 2),
+            'count' => Invoice::outstanding()->count(),
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Two counts, not a full read of every item's movement ledger.
+     *
+     * @return array<string, mixed>
+     */
     private function inventory(): array
     {
-        $active = InventoryItem::query()
-            ->where('active', true)
-            ->withSum('movements as on_hand', 'quantity')
-            ->get();
-
         return [
-            'low_count' => $active
-                ->filter(fn (InventoryItem $item) => InventoryItem::isLowFor((int) $item->on_hand, $item->reorder_threshold))
-                ->count(),
-            'expiring_count' => $active
-                ->filter(fn (InventoryItem $item) => $item->isExpiringSoon())
-                ->count(),
+            'low_count' => InventoryItem::lowStock()->count(),
+            'expiring_count' => InventoryItem::expiringSoon()->count(),
         ];
     }
 }

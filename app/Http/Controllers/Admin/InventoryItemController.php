@@ -20,6 +20,14 @@ use Inertia\Response;
  */
 class InventoryItemController extends Controller
 {
+    /**
+     * The item list, filtered and paginated in the database.
+     *
+     * This used to read every item's entire movement ledger and filter the
+     * resulting collection in PHP. On-hand is now a correlated subquery
+     * (InventoryItem::onHandSql()), so the low-stock and expiring filters
+     * are WHERE clauses and the page is bounded.
+     */
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -30,43 +38,21 @@ class InventoryItemController extends Controller
         $search = $validated['search'] ?? null;
 
         $items = InventoryItem::query()
-            ->withSum('movements as on_hand', 'quantity')
-            ->orderBy('name')
-            ->get()
-            ->filter(function (InventoryItem $item) use ($filter) {
-                $onHand = (int) $item->on_hand;
-
-                return match ($filter) {
-                    'low' => $item->active && $onHand <= $item->reorder_threshold,
-                    'expiring' => $item->active && $item->isExpiringSoon(),
-                    'archived' => ! $item->active,
-                    default => $item->active,
-                };
+            ->withOnHand()
+            ->when($filter === 'low', fn ($q) => $q->lowStock())
+            ->when($filter === 'expiring', fn ($q) => $q->expiringSoon())
+            ->when($filter === 'archived', fn ($q) => $q->where('active', false))
+            ->when($filter === 'all', fn ($q) => $q->where('active', true))
+            ->when($search !== null && $search !== '', function ($q) use ($search) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $q->where('name', 'like', $like);
             })
-            ->when($search !== null, fn ($collection) => $collection->filter(
-                fn (InventoryItem $item) => str_contains(mb_strtolower($item->name), mb_strtolower($search)),
-            ))
-            ->values()
-            ->map(function (InventoryItem $item) {
-                $onHand = (int) $item->on_hand;
-
-                return [
-                    'id' => $item->id,
-                    'name' => $item->name,
-                    'category' => $item->category,
-                    'unit' => $item->unit,
-                    'on_hand' => $onHand,
-                    'reorder_threshold' => $item->reorder_threshold,
-                    'stock_status' => InventoryItem::statusFor($onHand, $item->reorder_threshold),
-                    'supplier' => $item->supplier,
-                    'expiry_date' => $item->expiry_date?->toDateString(),
-                    'is_expiring_soon' => $item->isExpiringSoon(),
-                    'active' => $item->active,
-                ];
-            });
+            ->orderBy('name')
+            ->paginate(30)
+            ->withQueryString();
 
         return Inertia::render('Inventory/Index', [
-            'items' => $items,
+            'items' => $items->through(fn (InventoryItem $item) => $item->toListArray()),
             'filters' => ['filter' => $filter, 'search' => $search],
         ]);
     }

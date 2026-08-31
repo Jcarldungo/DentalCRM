@@ -3,6 +3,7 @@ import Card from '@/Components/UI/Card';
 import Field, { TextareaField } from '@/Components/UI/Field';
 import Modal, { ConfirmDialog } from '@/Components/UI/Modal';
 import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import Pagination from '@/Components/UI/Pagination';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Mail, Phone, Plus, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
@@ -249,35 +250,8 @@ export default function Index({ patients, summaries, filters }) {
                     )}
                 </Card>
 
-                {patients.last_page > 1 && (
-                    <nav
-                        aria-label="Patient list pages"
-                        className="mt-4 flex flex-wrap items-center justify-between gap-3"
-                    >
-                        <p className="text-xs text-slate-500">
-                            Showing {patients.from}–{patients.to} of {patients.total}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                            {patients.links.map((link, index) => (
-                                <Link
-                                    key={index}
-                                    href={link.url ?? '#'}
-                                    preserveScroll
-                                    aria-current={link.active ? 'page' : undefined}
-                                    aria-disabled={!link.url}
-                                    className={`inline-flex h-9 min-w-9 items-center justify-center rounded-lg px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                                        link.active
-                                            ? 'bg-brand-600 font-medium text-white'
-                                            : link.url
-                                              ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                                              : 'pointer-events-none border border-slate-200 text-slate-300'
-                                    }`}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                />
-                            ))}
-                        </div>
-                    </nav>
-                )}
+                <Pagination paginator={patients} label="Patient list pages" />
+
             </PageContainer>
 
             <Modal

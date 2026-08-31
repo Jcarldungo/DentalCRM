@@ -75,10 +75,10 @@ class InventoryItemTest extends TestCase
 
         $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page
             ->component('Inventory/Index')
-            ->has('items', 1)
-            ->where('items.0.name', 'Nitrile Gloves')
-            ->where('items.0.on_hand', 3)
-            ->where('items.0.stock_status', 'low'));
+            ->has('items.data', 1)
+            ->where('items.data.0.name', 'Nitrile Gloves')
+            ->where('items.data.0.on_hand', 3)
+            ->where('items.data.0.stock_status', 'low'));
     }
 
     public function test_index_filters_low_expiring_and_archived(): void
@@ -98,13 +98,13 @@ class InventoryItemTest extends TestCase
         $archived = InventoryItem::factory()->archived()->create();
 
         $this->get(route('inventory.index', ['filter' => 'low']))
-            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $low->id));
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.id', $low->id));
         $this->get(route('inventory.index', ['filter' => 'expiring']))
-            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $expiring->id));
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.id', $expiring->id));
         $this->get(route('inventory.index', ['filter' => 'archived']))
-            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.id', $archived->id));
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.id', $archived->id));
         $this->get(route('inventory.index'))
-            ->assertInertia(fn ($page) => $page->has('items', 3));
+            ->assertInertia(fn ($page) => $page->has('items.data', 3));
 
         Carbon::setTestNow();
     }
@@ -116,7 +116,7 @@ class InventoryItemTest extends TestCase
         InventoryItem::factory()->create(['name' => 'Face Masks']);
 
         $this->get(route('inventory.index', ['search' => 'glove']))
-            ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.name', 'Nitrile Gloves'));
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.name', 'Nitrile Gloves'));
     }
 
     public function test_index_rejects_an_unknown_filter(): void
@@ -228,12 +228,12 @@ class InventoryItemTest extends TestCase
         $item = InventoryItem::factory()->create();
 
         $this->patch(route('inventory.update', $item), ['active' => false]);
-        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items', 0));
+        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items.data', 0));
         $this->get(route('inventory.index', ['filter' => 'archived']))
-            ->assertInertia(fn ($page) => $page->has('items', 1));
+            ->assertInertia(fn ($page) => $page->has('items.data', 1));
 
         $this->patch(route('inventory.update', $item), ['active' => true]);
-        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items', 1));
+        $this->get(route('inventory.index'))->assertInertia(fn ($page) => $page->has('items.data', 1));
     }
 
     public function test_there_is_no_inventory_destroy_route(): void

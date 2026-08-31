@@ -24,42 +24,62 @@ use Inertia\Response;
  */
 class InvoiceController extends Controller
 {
+    /**
+     * The invoice list, filtered and paginated in the database.
+     *
+     * This used to load every invoice with every line item and every
+     * payment, derive the money in PHP, and filter the resulting
+     * collection — three unbounded reads to render one page. The figures
+     * are now correlated subqueries (see Invoice::balanceSql()), so a
+     * clinic with ten years of billing renders the same page as one with
+     * ten invoices.
+     *
+     * The totals strip is a separate aggregate over the whole filtered
+     * set, because "how much is outstanding" must not mean "on this page".
+     */
     public function index(Request $request): Response
     {
         $validated = $request->validate([
             'status' => ['nullable', Rule::in(['all', 'draft', 'outstanding', 'paid', 'void'])],
+            'search' => ['nullable', 'string', 'max:100'],
         ]);
         $filter = $validated['status'] ?? 'all';
+        $search = trim($validated['search'] ?? '');
 
-        $invoices = Invoice::query()
-            ->latest('created_at')
-            ->latest('id')
-            ->with(['items', 'payments', 'patient:id,first_name,last_name'])
-            ->get()
-            ->filter(fn (Invoice $invoice) => match ($filter) {
-                'draft' => $invoice->status === 'draft',
-                'outstanding' => $invoice->status === 'issued' && $invoice->balance() > 0,
-                'paid' => $invoice->status === 'issued' && $invoice->balance() <= 0,
-                'void' => $invoice->status === 'void',
-                default => true,
-            })
-            ->values()
-            ->map(fn (Invoice $invoice) => [
-                'id' => $invoice->id,
-                'number' => $invoice->number(),
-                'patient_id' => $invoice->patient_id,
-                'patient_name' => $invoice->patient->full_name,
-                'status' => $invoice->status,
-                'total' => $invoice->total(),
-                'amount_paid' => $invoice->amountPaid(),
-                'balance' => $invoice->balance(),
-                'is_paid' => $invoice->isPaid(),
-                'created_at' => $invoice->created_at->toIso8601String(),
-            ]);
+        $query = Invoice::query()
+            ->withMoney()
+            ->with('patient:id,first_name,last_name')
+            ->when($filter === 'draft', fn ($q) => $q->where('status', 'draft'))
+            ->when($filter === 'void', fn ($q) => $q->where('status', 'void'))
+            ->when($filter === 'outstanding', fn ($q) => $q->outstanding())
+            ->when($filter === 'paid', fn ($q) => $q->settled())
+            ->when($search !== '', function ($q) use ($search) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+
+                $q->where(function ($scoped) use ($like, $search) {
+                    $scoped
+                        ->whereHas('patient', fn ($patient) => $patient
+                            ->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhereRaw("concat(first_name, ' ', last_name) like ?", [$like]))
+                        // "INV-000012", "000012", and "12" all find it.
+                        ->orWhere('invoices.id', (int) ltrim(preg_replace('/[^0-9]/', '', $search), '0') ?: 0);
+                });
+            });
+
+        $invoices = (clone $query)
+            ->latest('invoices.created_at')
+            ->latest('invoices.id')
+            ->paginate(25)
+            ->withQueryString();
 
         return Inertia::render('Invoices/Index', [
-            'invoices' => $invoices,
-            'filters' => ['status' => $filter],
+            'invoices' => $invoices->through(fn (Invoice $invoice) => $invoice->toListArray()),
+            'summary' => [
+                'count' => $invoices->total(),
+                'outstanding' => round((float) (clone $query)->outstanding()->sum(DB::raw(Invoice::balanceSql())), 2),
+            ],
+            'filters' => ['status' => $filter, 'search' => $search],
         ]);
     }
 

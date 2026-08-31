@@ -105,16 +105,15 @@ class PatientController extends Controller
             ->pluck('at', 'patient_id');
 
         $balances = Invoice::whereIn('patient_id', $ids)
-            ->where('status', 'issued')
-            ->with(['items', 'payments'])
-            ->get()
+            ->outstanding()
+            ->selectRaw('patient_id, sum('.Invoice::balanceSql().') as owed')
             ->groupBy('patient_id')
-            ->map(fn ($invoices) => round($invoices->sum(fn (Invoice $invoice) => max($invoice->balance(), 0)), 2));
+            ->pluck('owed', 'patient_id');
 
         return collect($ids)->mapWithKeys(fn (int $id) => [$id => [
             'last_visit' => $lastVisit[$id] ?? null,
             'next_visit' => $nextVisit[$id] ?? null,
-            'balance' => (float) ($balances[$id] ?? 0),
+            'balance' => round((float) ($balances[$id] ?? 0), 2),
         ]])->all();
     }
 

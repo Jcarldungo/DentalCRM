@@ -147,11 +147,6 @@ class ReportsController extends Controller
             ->get()
             ->sum(fn (Invoice $i) => (float) $i->items_total - (float) $i->discount_amount), 2);
 
-        $outstanding = Invoice::query()
-            ->where('status', 'issued')
-            ->with(['items', 'payments'])
-            ->get()
-            ->filter(fn (Invoice $i) => $i->balance() > 0);
 
         $keys = $this->bucketKeys($start, $end, $bucket);
         $collectedByBucket = Payment::query()
@@ -165,9 +160,11 @@ class ReportsController extends Controller
         return [
             'collected_total' => $collectedTotal,
             'invoiced_total' => $invoicedTotal,
+            // Two aggregates. This used to load every issued invoice with
+            // its items and payments to reach one number.
             'outstanding' => [
-                'total' => round($outstanding->sum(fn (Invoice $i) => $i->balance()), 2),
-                'count' => $outstanding->count(),
+                'total' => round((float) Invoice::outstanding()->sum(DB::raw(Invoice::balanceSql())), 2),
+                'count' => Invoice::outstanding()->count(),
                 'as_of' => now()->toDateString(),
             ],
             'collected_trend' => [

@@ -3,6 +3,7 @@ import Card from '@/Components/UI/Card';
 import Field, { SelectField, TextareaField } from '@/Components/UI/Field';
 import Modal from '@/Components/UI/Modal';
 import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import Pagination from '@/Components/UI/Pagination';
 import StatusBadge from '@/Components/UI/StatusBadge';
 import { stockStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -79,7 +80,7 @@ export default function Index({ items, filters }) {
             <PageContainer>
                 <PageHeader
                     title="Inventory"
-                    description={`${items.length} item${items.length === 1 ? '' : 's'} in this view`}
+                    description={`${items.total} item${items.total === 1 ? '' : 's'} in this view`}
                     actions={
                         <Button
                             icon={Plus}
@@ -136,7 +137,7 @@ export default function Index({ items, filters }) {
                 </div>
 
                 <Card className="overflow-hidden">
-                    {items.length === 0 ? (
+                    {items.data.length === 0 ? (
                         <EmptyState
                             icon={Boxes}
                             title="Nothing here"
@@ -171,7 +172,7 @@ export default function Index({ items, filters }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
-                                    {items.map((item) => (
+                                    {items.data.map((item) => (
                                         <tr key={item.id} className="transition-colors hover:bg-slate-50">
                                             <td className="px-4 py-2.5 sm:px-5">
                                                 <Link
@@ -211,6 +212,8 @@ export default function Index({ items, filters }) {
                         </div>
                     )}
                 </Card>
+
+                <Pagination paginator={items} label="Inventory list pages" />
             </PageContainer>
 
             <Modal

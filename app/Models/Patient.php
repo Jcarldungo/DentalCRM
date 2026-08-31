@@ -82,32 +82,52 @@ class Patient extends Model
             || $this->invoices()->exists();
     }
 
+    /** The recall interval used when a patient has no override. */
+    public const DEFAULT_RECALL_MONTHS = 6;
+
+    /**
+     * Patients whose last completed cleaning is further back than their
+     * recall interval.
+     *
+     * Done in SQL. This ran on every dashboard load and used to fetch
+     * *every* patient plus *every* cleaning appointment they had ever had
+     * into memory, then discard almost all of it — the single worst read
+     * in the application, and one that got worse with every patient added.
+     *
+     * The join finds each patient's most recent completed cleaning, and
+     * the interval comparison happens in the WHERE clause, so only the
+     * overdue rows come back.
+     */
     public static function dueForRecall(?\Carbon\Carbon $asOf = null): \Illuminate\Support\Collection
     {
         $asOf = $asOf ?? now();
 
-        return static::with(['appointments' => function ($query) {
-                $query->where('type', 'cleaning')
-                    ->where('status', 'completed')
-                    ->orderByDesc('start_time');
-            }])
+        $lastCleaning = \Illuminate\Support\Facades\DB::table('appointments')
+            ->selectRaw('patient_id, max(start_time) as last_cleaning_at')
+            ->where('type', 'cleaning')
+            ->where('status', 'completed')
+            ->groupBy('patient_id');
+
+        return static::query()
+            ->joinSub($lastCleaning, 'recall', 'recall.patient_id', '=', 'patients.id')
+            ->select('patients.*', 'recall.last_cleaning_at')
+            ->selectRaw(
+                'date_add(recall.last_cleaning_at, interval coalesce(patients.recall_interval_months, ?) month) as due_at',
+                [self::DEFAULT_RECALL_MONTHS],
+            )
+            ->whereRaw(
+                'date_add(recall.last_cleaning_at, interval coalesce(patients.recall_interval_months, ?) month) <= ?',
+                [self::DEFAULT_RECALL_MONTHS, $asOf],
+            )
+            ->orderBy('due_at')
+            ->orderBy('patients.id')
             ->get()
             ->map(function (self $patient) {
-                $lastCleaning = $patient->appointments->first();
-
-                if (! $lastCleaning) {
-                    return null;
-                }
-
-                $interval = $patient->recall_interval_months ?? 6;
-                $patient->recall_last_cleaning_at = $lastCleaning->start_time;
-                $patient->recall_due_date = $lastCleaning->start_time->copy()->addMonths($interval);
+                $patient->recall_last_cleaning_at = \Carbon\Carbon::parse($patient->last_cleaning_at);
+                $patient->recall_due_date = \Carbon\Carbon::parse($patient->due_at);
 
                 return $patient;
             })
-            ->filter()
-            ->filter(fn (self $patient) => $patient->recall_due_date->lessThanOrEqualTo($asOf))
-            ->sortBy('recall_due_date')
             ->values();
     }
 }

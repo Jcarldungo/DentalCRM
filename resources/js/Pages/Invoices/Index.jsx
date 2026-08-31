@@ -1,10 +1,12 @@
 import Card from '@/Components/UI/Card';
 import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import Pagination from '@/Components/UI/Pagination';
 import StatusBadge from '@/Components/UI/StatusBadge';
 import { invoiceDisplayStatus } from '@/Components/UI/statuses';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Receipt } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Receipt, Search, X } from 'lucide-react';
 import { formatDate, formatPeso } from '@/Pages/Patients/format';
 
 const FILTERS = [
@@ -23,16 +25,29 @@ const EMPTY_COPY = {
     void: 'No invoices have been voided.',
 };
 
-export default function Index({ invoices, filters }) {
-    function setFilter(status) {
+export default function Index({ invoices, summary, filters }) {
+    const [term, setTerm] = useState(filters.search ?? '');
+    const first = useRef(true);
+
+    function go(params) {
         router.get(
             route('invoices.index'),
-            status === 'all' ? {} : { status },
+            { status: filters.status === 'all' ? undefined : filters.status, search: term || undefined, ...params },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     }
 
-    const outstanding = invoices.reduce((sum, invoice) => sum + Math.max(invoice.balance, 0), 0);
+    // Debounced, replace-in-place, so typing doesn't stack history entries.
+    useEffect(() => {
+        if (first.current) {
+            first.current = false;
+            return undefined;
+        }
+
+        const timer = setTimeout(() => go({ page: undefined }), 300);
+
+        return () => clearTimeout(timer);
+    }, [term]);
 
     return (
         <AuthenticatedLayout title="Billing">
@@ -42,19 +57,18 @@ export default function Index({ invoices, filters }) {
                 <PageHeader
                     title="Billing"
                     description={
-                        invoices.length === 0
+                        summary.count === 0
                             ? 'No invoices in this view.'
-                            : `${invoices.length} invoice${invoices.length === 1 ? '' : 's'}${
-                                  outstanding > 0 ? ` · ${formatPeso(outstanding)} outstanding` : ''
+                            : `${summary.count} invoice${summary.count === 1 ? '' : 's'}${
+                                  summary.outstanding > 0
+                                      ? ` · ${formatPeso(summary.outstanding)} outstanding`
+                                      : ''
                               }`
                     }
                 />
 
-                <div
-                    role="group"
-                    aria-label="Filter invoices by status"
-                    className="mb-4 flex flex-wrap gap-1.5"
-                >
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <div role="group" aria-label="Filter invoices by status" className="flex flex-wrap gap-1.5">
                     {FILTERS.map((filter) => {
                         const active = filters.status === filter.value;
 
@@ -62,7 +76,7 @@ export default function Index({ invoices, filters }) {
                             <button
                                 key={filter.value}
                                 type="button"
-                                onClick={() => setFilter(filter.value)}
+                                onClick={() => go({ status: filter.value === 'all' ? undefined : filter.value, page: undefined })}
                                 aria-pressed={active}
                                 className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
                                     active
@@ -74,14 +88,44 @@ export default function Index({ invoices, filters }) {
                             </button>
                         );
                     })}
+                    </div>
+
+                    <div className="relative w-full max-w-xs">
+                        <Search
+                            className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                        />
+                        <input
+                            type="search"
+                            value={term}
+                            onChange={(e) => setTerm(e.target.value)}
+                            aria-label="Search invoices by patient or invoice number"
+                            placeholder="Patient or invoice number…"
+                            className="h-9 w-full rounded-lg border-slate-300 ps-9 pe-9 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500"
+                        />
+                        {term && (
+                            <button
+                                type="button"
+                                onClick={() => setTerm('')}
+                                aria-label="Clear search"
+                                className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                            >
+                                <X className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <Card className="overflow-hidden">
-                    {invoices.length === 0 ? (
+                    {invoices.data.length === 0 ? (
                         <EmptyState
                             icon={Receipt}
                             title="No invoices here"
-                            description={EMPTY_COPY[filters.status] ?? EMPTY_COPY.all}
+                            description={
+                                filters.search
+                                    ? `Nothing matches \u201c${filters.search}\u201d in this view.`
+                                    : (EMPTY_COPY[filters.status] ?? EMPTY_COPY.all)
+                            }
                         />
                     ) : (
                         <div className="overflow-x-auto">
@@ -109,7 +153,7 @@ export default function Index({ invoices, filters }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
-                                    {invoices.map((invoice) => (
+                                    {invoices.data.map((invoice) => (
                                         <tr key={invoice.id} className="transition-colors hover:bg-slate-50">
                                             <td className="px-4 py-2.5 sm:px-5">
                                                 <Link
@@ -148,6 +192,8 @@ export default function Index({ invoices, filters }) {
                         </div>
                     )}
                 </Card>
+
+                <Pagination paginator={invoices} label="Invoice list pages" />
             </PageContainer>
         </AuthenticatedLayout>
     );

@@ -500,9 +500,9 @@ class InvoiceTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('Invoices/Index')
             ->where('filters.status', 'all')
-            ->has('invoices', 2)
-            ->where('invoices.0.id', $newer->id)
-            ->where('invoices.1.id', $older->id)
+            ->has('invoices.data', 2)
+            ->where('invoices.data.0.id', $newer->id)
+            ->where('invoices.data.1.id', $older->id)
         );
     }
 
@@ -523,15 +523,15 @@ class InvoiceTest extends TestCase
         $void = Invoice::factory()->void()->create();
 
         $this->get(route('invoices.index', ['status' => 'draft']))
-            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $draft->id));
+            ->assertInertia(fn ($page) => $page->has('invoices.data', 1)->where('invoices.data.0.id', $draft->id));
         $this->get(route('invoices.index', ['status' => 'outstanding']))
-            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $outstanding->id));
+            ->assertInertia(fn ($page) => $page->has('invoices.data', 1)->where('invoices.data.0.id', $outstanding->id));
         $this->get(route('invoices.index', ['status' => 'paid']))
-            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $paid->id));
+            ->assertInertia(fn ($page) => $page->has('invoices.data', 1)->where('invoices.data.0.id', $paid->id));
         $this->get(route('invoices.index', ['status' => 'void']))
-            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('invoices.0.id', $void->id));
+            ->assertInertia(fn ($page) => $page->has('invoices.data', 1)->where('invoices.data.0.id', $void->id));
         $this->get(route('invoices.index'))
-            ->assertInertia(fn ($page) => $page->has('invoices', 4));
+            ->assertInertia(fn ($page) => $page->has('invoices.data', 4));
     }
 
     public function test_index_rejects_an_unknown_status_filter(): void
