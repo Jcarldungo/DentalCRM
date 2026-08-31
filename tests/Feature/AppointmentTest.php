@@ -574,4 +574,47 @@ class AppointmentTest extends TestCase
             ->where('requests.0.notes', 'Upper-right tooth pain.')
         );
     }
+
+    /**
+     * The calendar's edit dialog is backed by one shared useForm covering
+     * create, confirm, and edit, so in edit mode it submits blank strings
+     * for patient_id and provider_id. `sometimes|required` treated a blank
+     * string as present-but-empty and rejected every edit with "The
+     * provider id field is required" — an error on a field the dialog does
+     * not show. The effect was that an appointment's time or status could
+     * not be changed from the calendar at all.
+     */
+    public function test_blank_fields_in_an_edit_payload_are_treated_as_absent(): void
+    {
+        $this->actingUser();
+        $appointment = Appointment::factory()->create(['status' => 'scheduled']);
+
+        $response = $this->patch(route('appointments.update', $appointment), [
+            'patient_id' => '',
+            'provider_id' => '',
+            'start_time' => $appointment->start_time->toDateTimeString(),
+            'end_time' => $appointment->end_time->toDateTimeString(),
+            'type' => 'checkup',
+            'status' => 'completed',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame('completed', $appointment->fresh()->status);
+        // The provider it already had is untouched, not nulled.
+        $this->assertSame($appointment->provider_id, $appointment->fresh()->provider_id);
+    }
+
+    public function test_a_blank_status_does_not_wipe_the_status(): void
+    {
+        $this->actingUser();
+        $appointment = Appointment::factory()->create(['status' => 'scheduled']);
+
+        $this->patch(route('appointments.update', $appointment), [
+            'status' => '',
+            'type' => 'cleaning',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('scheduled', $appointment->fresh()->status);
+        $this->assertSame('cleaning', $appointment->fresh()->type);
+    }
 }

@@ -97,9 +97,29 @@ class AppointmentController extends Controller
         return back()->with('success', 'Appointment scheduled.');
     }
 
+    /**
+     * A partial update: only the fields present are changed.
+     *
+     * The payload is normalised first, because "present" has to mean
+     * "actually carries a value". The calendar's edit dialog submits one
+     * shared form whose patient_id and provider_id are blank in edit mode,
+     * so a plain `sometimes|required` rejected every edit with "The
+     * provider id field is required" — an error on a field that dialog
+     * does not even show. The result was that an appointment's time or
+     * status could not be changed from the calendar at all.
+     *
+     * Fixing it in the frontend alone would leave the next caller to
+     * rediscover it, so an empty string is treated as absent here too.
+     */
     public function update(Request $request, Appointment $appointment): RedirectResponse
     {
         $originalStatus = $appointment->status;
+
+        $request->replace(
+            collect($request->all())
+                ->reject(fn ($value) => $value === '' || $value === null)
+                ->all()
+        );
 
         $validated = $request->validate([
             'provider_id' => ['sometimes', 'required', 'exists:providers,id'],

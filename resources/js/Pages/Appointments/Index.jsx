@@ -50,7 +50,7 @@ export default function Index({ patients, providers, requests }) {
     const calendarRef = useRef(null);
     const [modal, setModal] = useState(null);
     const [declining, setDeclining] = useState(null);
-    const { data, setData, post, patch, processing, errors, reset, clearErrors } = useForm({
+    const { data, setData, post, patch, transform, processing, errors, reset, clearErrors } = useForm({
         patient_id: '',
         provider_id: '',
         start_time: '',
@@ -110,6 +110,18 @@ export default function Index({ patients, providers, requests }) {
                 refetch();
             },
         };
+
+        // Send only the fields the open dialog actually shows. One useForm
+        // instance backs all three modes, so in edit mode patient_id and
+        // provider_id are blank strings — and a PATCH means "change the
+        // fields I sent", so a blank is not a value to send. Create is
+        // unaffected: its rules are plain `required`, which still fires on
+        // an absent key.
+        transform((payload) =>
+            Object.fromEntries(
+                Object.entries(payload).filter(([, value]) => value !== '' && value !== null),
+            ),
+        );
 
         if (modal.mode === 'create') {
             post(route('appointments.store'), done);
