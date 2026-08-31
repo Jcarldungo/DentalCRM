@@ -63,13 +63,18 @@ class PaymentTest extends TestCase
         $this->actingUser();
         $invoice = $this->issuedInvoice();
 
+        // Relative to the invoice, not a hardcoded date: paid_on is now
+        // floored at the issue date, and a fixed date would also be a time
+        // bomb the moment the clock passes it.
+        $paidOn = $invoice->issued_at->toDateString();
+
         $this->post(route('invoice-payments.store', $invoice), [
             'amount' => 100,
             'method' => 'cash',
-            'paid_on' => '2026-08-20',
-        ]);
+            'paid_on' => $paidOn,
+        ])->assertSessionHasNoErrors();
 
-        $this->assertSame('2026-08-20', Payment::first()->paid_on->toDateString());
+        $this->assertSame($paidOn, Payment::first()->paid_on->toDateString());
     }
 
     public function test_payments_are_only_allowed_on_issued_invoices(): void
@@ -192,5 +197,32 @@ class PaymentTest extends TestCase
     {
         $this->assertFalse(method_exists(\App\Http\Controllers\Admin\PaymentController::class, 'update'));
         $this->assertFalse(method_exists(\App\Http\Controllers\Admin\PaymentController::class, 'destroy'));
+    }
+
+    /**
+     * Bounded at both ends. The floor is the invoice's own issue date:
+     * money cannot have been received against a bill that did not exist
+     * yet, which makes a typo'd year an error rather than a silent hole in
+     * the revenue figures.
+     */
+    public function test_a_payment_cannot_predate_the_invoice_being_issued(): void
+    {
+        $this->actingUser();
+        $invoice = $this->issuedInvoice();
+
+        $this->post(route('invoice-payments.store', $invoice), [
+            'amount' => 100,
+            'method' => 'cash',
+            'paid_on' => $invoice->issued_at->clone()->subDay()->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        // The typo the floor exists to catch.
+        $this->post(route('invoice-payments.store', $invoice), [
+            'amount' => 100,
+            'method' => 'cash',
+            'paid_on' => $invoice->issued_at->clone()->subYear()->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        $this->assertSame(0, Payment::count());
     }
 }

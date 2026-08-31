@@ -29,10 +29,15 @@ class StockMovementController extends Controller
             'direction' => ['nullable', 'required_if:type,adjustment', Rule::in(['increase', 'decrease'])],
             'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'reason' => ['required_if:type,adjustment', 'nullable', 'string', 'max:255'],
-            // Same reasoning as PaymentController::store's paid_on — a
-            // future-dated movement moves stock outside the period it is
-            // reported in. No lower bound.
-            'occurred_on' => ['nullable', 'date', 'before_or_equal:today'],
+            // Same reasoning as PaymentController::store's paid_on, with
+            // the same shape of floor: stock cannot have moved before the
+            // item it belongs to existed.
+            'occurred_on' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+                'after_or_equal:'.$inventoryItem->created_at->toDateString(),
+            ],
         ]);
 
         $magnitude = (int) $validated['quantity'];

@@ -27,11 +27,22 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
             'method' => ['required', Rule::in(Payment::METHODS)],
-            // A back-dated payment reduces the balance immediately but lands
-            // outside every /reports range, so collected revenue silently
-            // under-reports while A/R correctly drops. No lower bound: a
-            // floor would need a business rule this app doesn't have.
-            'paid_on' => ['nullable', 'date', 'before_or_equal:today'],
+            // Bounded at both ends now. A back-dated payment reduces the
+            // balance immediately but lands outside every /reports range,
+            // so collected revenue silently under-reports while A/R
+            // correctly drops.
+            //
+            // The floor is the invoice's own issue date: money cannot have
+            // been received against a bill that did not exist yet. That is
+            // a rule the data already carries, rather than an arbitrary
+            // one — and it is what makes a typo'd year ('2025' for '2026')
+            // an error instead of a silent hole in the revenue figures.
+            'paid_on' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+                'after_or_equal:'.$invoice->issued_at->toDateString(),
+            ],
             'reference' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);

@@ -68,13 +68,17 @@ class StockMovementTest extends TestCase
         $this->actingUser();
         $item = $this->stockedItem(0);
 
+        // Relative to the item, not a hardcoded date — occurred_on is now
+        // floored at the item's creation.
+        $occurredOn = $item->created_at->toDateString();
+
         $this->post(route('inventory-movements.store', $item), [
             'type' => 'received',
             'quantity' => 5,
-            'occurred_on' => '2026-08-20',
-        ]);
+            'occurred_on' => $occurredOn,
+        ])->assertSessionHasNoErrors();
 
-        $this->assertSame('2026-08-20', StockMovement::sole()->occurred_on->toDateString());
+        $this->assertSame($occurredOn, StockMovement::sole()->occurred_on->toDateString());
     }
 
     public function test_consumed_subtracts_stock_and_ignores_unit_cost(): void
@@ -225,5 +229,17 @@ class StockMovementTest extends TestCase
     {
         $this->assertFalse(Route::has('inventory-movements.update'));
         $this->assertFalse(Route::has('inventory-movements.destroy'));
+    }
+
+    public function test_a_movement_cannot_predate_the_item_it_moves(): void
+    {
+        $this->actingUser();
+        $item = $this->stockedItem();
+
+        $this->post(route('inventory-movements.store', $item), [
+            'type' => 'received',
+            'quantity' => 5,
+            'occurred_on' => $item->created_at->clone()->subDay()->toDateString(),
+        ])->assertSessionHasErrors('occurred_on');
     }
 }
