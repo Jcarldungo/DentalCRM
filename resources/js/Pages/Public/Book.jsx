@@ -112,7 +112,7 @@ export default function Book({
                             <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
                                 <div>
                                     <label htmlFor="service_interest" className="block text-sm font-medium text-stone-700">
-                                        Service
+                                        Service <span className="text-stone-400">(required)</span>
                                     </label>
                                     <select
                                         id="service_interest"
@@ -156,7 +156,7 @@ export default function Book({
 
                                 <div>
                                     <label htmlFor="preferred_date" className="block text-sm font-medium text-stone-700">
-                                        Preferred date
+                                        Preferred date <span className="text-stone-400">(required)</span>
                                     </label>
                                     <input
                                         id="preferred_date"
@@ -203,7 +203,7 @@ export default function Book({
 
                                 <div>
                                     <label htmlFor="name" className="block text-sm font-medium text-stone-700">
-                                        Name
+                                        Name <span className="text-stone-400">(required)</span>
                                     </label>
                                     <input
                                         id="name"
@@ -222,7 +222,7 @@ export default function Book({
 
                                 <div>
                                     <label htmlFor="email" className="block text-sm font-medium text-stone-700">
-                                        Email
+                                        Email <span className="text-stone-400">(required)</span>
                                     </label>
                                     <input
                                         id="email"
@@ -232,16 +232,21 @@ export default function Book({
                                         aria-describedby={errors.email ? 'email-error' : undefined}
                                         className={inputClass}
                                     />
-                                    {errors.email && (
+                                    {errors.email ? (
                                         <p id="email-error" className="mt-1 text-sm text-red-600">
                                             {errors.email}
+                                        </p>
+                                    ) : (
+                                        <p className="mt-1 text-xs text-stone-500">
+                                            We confirm your appointment here, and you can check its status
+                                            with this address later.
                                         </p>
                                     )}
                                 </div>
 
                                 <div>
                                     <label htmlFor="phone" className="block text-sm font-medium text-stone-700">
-                                        Phone
+                                        Phone <span className="text-stone-400">(required)</span>
                                     </label>
                                     <input
                                         id="phone"

@@ -119,8 +119,13 @@ export default function PublicLayout({ children }) {
                         <p className="text-sm font-semibold text-stone-900">Services</p>
                         <ul className="mt-3 space-y-2">
                             {services.slice(0, 5).map((service) => (
-                                <li key={service.slug} className="text-sm text-stone-600">
-                                    {service.name}
+                                <li key={service.slug}>
+                                    <Link
+                                        href={route('services')}
+                                        className="text-sm text-stone-600 hover:text-teal-700"
+                                    >
+                                        {service.name}
+                                    </Link>
                                 </li>
                             ))}
                         </ul>
