@@ -298,28 +298,39 @@ aspirational, not a contract. Shipped so far:
 - **Phase 9** — the staff app's design system and shell, specced at
   `docs/superpowers/specs/2026-08-31-staff-app-design-system.md`. See
   Layout conventions above for what it established.
+- **Phase 10** — closing the recorded known gaps, specced at
+  `docs/superpowers/specs/2026-08-31-known-gap-closure-design.md`.
+  `patients.index` / `invoices.index` / `inventory.index` and
+  `Patient::dueForRecall()` do their work in the database and paginate;
+  `Appointment::TRANSITIONS` constrains status moves;
+  `POST /book` does identical work for a known and an unknown email;
+  `paid_on` / `occurred_on` have a floor; an append-only `audit_log` plus
+  `/activity` records and shows the thirteen actions worth asking about
+  afterwards; and `DesignSystemTest` turns the Layout conventions below
+  into lint rules.
 
 ## Known gaps
 
-- `Patient::dueForRecall()` loads every patient and their cleaning
-  appointments into memory, then filters in PHP. It runs on every dashboard
-  load. Fine at demo scale, should become a query.
-- `Appointment` status transitions are still unconstrained beyond
-  `Rule::in(STATUSES)` and the `BOARD_STATUSES` completeness guard — any
-  status can still become any other. Only the transition that produced a
-  persistent crash is closed, not the general problem.
-- `/invoices` and `/inventory` still load every row and filter in PHP —
-  no pagination or search. `patients.index` was the first list to
-  outgrow that and is now searched and paginated in the database; these
-  two have not been. The invoice money helpers (`balance()` etc.) also
-  re-derive on every read, with no cached column.
-- The design system is not enforced by tooling. Nothing stops a new page
-  writing its own `max-w-*`, its own button, or its own status colour —
-  only the conventions above and review. A lint rule banning raw
-  `<input>`/`<button>` in `Pages/` would make it mechanical.
 - `Components/UI/statuses.js` mirrors six server-side status constants by
   hand. A missing key degrades to a humanised label rather than
   crashing, but the two can still drift.
+- Invoice money now exists twice: as PHP over loaded relations
+  (`balance()` etc., right for one invoice) and as SQL
+  (`Invoice::balanceSql()` and the `outstanding()` / `settled()` scopes,
+  right for a list). `ListQueryTest` asserts they agree; a change to one
+  must change the other. The same applies to `InventoryItem::onHand()`
+  and `onHandSql()`.
+- `Appointment::TRANSITIONS` is permissive about corrections on purpose —
+  every mis-click has a one-step way back — so it constrains nonsense,
+  not workflow. It is not a clinical policy engine, and a clinic wanting
+  "a completed visit is final" has to say so.
+- The audit log has no retention policy and grows forever, and every
+  staff member can read `/activity` because the app has no roles. A
+  clinic wanting the log restricted to a practice manager needs the roles
+  work that is deferred across the whole product.
+- `DesignSystemTest` is a set of regexes over source files. It catches the
+  drift that actually happened; it is not a substitute for looking at the
+  page.
 - Waiting time on `/queue` is measured from the scheduled start, not from
   check-in: there is no `checked_in_at` column. It reads as "how late are
   we running against what this patient was told", which is the more
@@ -328,17 +339,16 @@ aspirational, not a contract. Shipped so far:
   `config/clinic.php`, but `resources/js/Data/services.js` and
   `dentists.js` still hold the richer marketing copy for the same
   things. Related data, not the same data — keep the names in step.
-- `POST /book` remains a weak, rate-limited, noisy patient-existence
-  timing oracle: a hit skips an INSERT that a miss performs. Making it
-  symmetric means deferring patient creation to a worker and changing
-  what the guest is told on submit.
 - Guest bookings still merge into an existing patient record on an email
   match, so anyone who knows a patient's email can append a `requested`
-  appointment to their history for staff to triage.
-- `paid_on` / `occurred_on` have an upper bound but no lower one, so a
-  payment can still be dated arbitrarily far in the past.
-- There is no audit log of who changed what, which would make several of
-  the Phase 8 findings detectable rather than merely preventable.
+  appointment to their history for staff to triage. Deliberately left
+  open in Phase 10: not merging needs `appointments.patient_id` to become
+  nullable, a reconciliation queue, and a decision about what every
+  *genuine* returning patient's booking then costs the front desk — a
+  change to a shipped Phase 3 workflow and to the schema, not a cleanup.
+  Now that Phase 8 constrained the fields, the residual risk is a bogus
+  `requested` row carrying a canonical service name: nuisance triage, not
+  data corruption.
 - `Appointment::countBookedForSlot()` and `hasConflict()` do a full table
   scan (no index on `preferred_date`/`preferred_time_of_day`/`status`/
   `start_time`). Fine at demo scale; add a composite index if the table
