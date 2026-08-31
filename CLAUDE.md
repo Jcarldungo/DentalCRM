@@ -43,7 +43,32 @@ database must exist before `php artisan test` will work.
 - **Public pages**: `resources/js/Pages/Public/` + `PublicLayout.jsx`.
   Staff pages use `AuthenticatedLayout.jsx`. Keep the two layouts and
   their styling entirely separate — the public site's teal/stone palette
-  must not leak into the internal app, or vice versa.
+  must not leak into the internal app, or vice versa. The staff app is
+  cool `slate` neutrals plus the custom `brand` scale in
+  `tailwind.config.js`; the public site is warm `stone` plus `teal-700`.
+- **Staff UI components** live in `resources/js/Components/UI/` and are
+  the only place their concern is implemented. Use them rather than
+  hand-rolling: `Button`, `Card`, `Modal`/`ConfirmDialog` (Headless UI —
+  never hand-roll an overlay, you lose the focus trap), `Field`/
+  `SelectField`/`TextareaField` (they generate the `id` and wire
+  `htmlFor`, which is what keeps every input named), `Tabs`, `Toast`,
+  `StatusBadge`, and `Page.jsx`'s `PageContainer`/`PageHeader`/
+  `EmptyState`/`DetailItem`.
+  `Components/UI/statuses.js` is the single source for every status →
+  label + tone mapping in the staff app. A page must not invent its own
+  colour for a status.
+  `PageContainer` is the one content width and the one padding rule; a
+  page that writes its own `max-w-*`/`px-*` is a bug waiting to be a
+  responsive one.
+- **The staff shell is a sidebar**, grouped Today / Records / Practice,
+  collapsing to an off-canvas drawer below `lg`. Pages pass
+  `title` and optional `actions`/`navBadges` to `AuthenticatedLayout`,
+  not a `header` element. A top-bar `actions` button is hidden from `lg`
+  up, where the page's own `PageHeader` carries it.
+- **Flash messages**: `HandleInertiaRequests` shares a fixed
+  `flash.success` / `flash.error` shape that `Toast` renders. A
+  controller action that changes something should say so with
+  `->with('success', ...)`.
 - **Static marketing content** lives in `resources/js/Data/*.js` (services,
   dentists, testimonials, faqs) as plain arrays — deliberately not database
   tables, and there's no admin editor for them.
@@ -62,7 +87,9 @@ database must exist before `php artisan test` will work.
   clinic's fake domain. `app/Mail/AppointmentConfirmed.php`,
   `AppointmentDeclined.php` (sent from
   `Admin\AppointmentController::update()`), `AppointmentLookupLink.php`
-  (sent from `AppointmentLookupController::send()`), and
+  (dispatched by `App\Jobs\SendAppointmentLookupLink`, which
+  `AppointmentLookupController::send()` queues on every submission so a
+  hit and a miss do identical work), and
   `AppointmentReminder.php` (sent from the
   `appointments:send-reminders` scheduled command — see Planning
   workflow), plus Laravel's built-in `VerifyEmail` notification, now
@@ -250,14 +277,68 @@ aspirational, not a contract. Shipped so far:
   expiry are in-app only. Batch/lot tracking, valuation reporting, a
   purchase-order workflow, and consumption↔appointment linkage are
   deferred.
+- **Phase 8, sub-projects 2 and 3** — data-integrity and deployment
+  hardening, specced at
+  `docs/superpowers/specs/2026-08-30-data-integrity-hardening-design.md`
+  and `...-deployment-hardening-design.md`. Patients with any history
+  cannot be deleted; invoice status and transition legality are decided
+  under the row lock; board statuses require a schedulable appointment
+  (`Appointment::BOARD_STATUSES`); profile deletion guards all eight
+  `created_by` owners and deletes before tearing down the session;
+  `paid_on`/`occurred_on` are bounded at today; stock cannot be *added*
+  to an archived item; booking fields are `Rule::in` against
+  `config('clinic.bookable_services'/'bookable_dentists')`; `POST /book`
+  is 3/hour with a 180-day horizon; the appointment lookup does equal
+  work on hit and miss via `App\Jobs\SendAppointmentLookupLink`;
+  `patients.email` is unique. Plus `App\Http\Middleware\SecurityHeaders`
+  (CSP with a per-request nonce, HSTS on secure requests, nosniff,
+  `frame-ancestors 'none'`, Referrer-Policy, Permissions-Policy),
+  trusted proxies/hosts, forced HTTPS in production, a scoped Ziggy
+  route group for guests, and `.env.production.example`.
+- **Phase 9** — the staff app's design system and shell, specced at
+  `docs/superpowers/specs/2026-08-31-staff-app-design-system.md`. See
+  Layout conventions above for what it established.
 
 ## Known gaps
 
 - `Patient::dueForRecall()` loads every patient and their cleaning
   appointments into memory, then filters in PHP. It runs on every dashboard
   load. Fine at demo scale, should become a query.
-- `Appointment` status transitions are unconstrained beyond
-  `Rule::in(STATUSES)` — any status can become any other.
+- `Appointment` status transitions are still unconstrained beyond
+  `Rule::in(STATUSES)` and the `BOARD_STATUSES` completeness guard — any
+  status can still become any other. Only the transition that produced a
+  persistent crash is closed, not the general problem.
+- `/invoices` and `/inventory` still load every row and filter in PHP —
+  no pagination or search. `patients.index` was the first list to
+  outgrow that and is now searched and paginated in the database; these
+  two have not been. The invoice money helpers (`balance()` etc.) also
+  re-derive on every read, with no cached column.
+- The design system is not enforced by tooling. Nothing stops a new page
+  writing its own `max-w-*`, its own button, or its own status colour —
+  only the conventions above and review. A lint rule banning raw
+  `<input>`/`<button>` in `Pages/` would make it mechanical.
+- `Components/UI/statuses.js` mirrors six server-side status constants by
+  hand. A missing key degrades to a humanised label rather than
+  crashing, but the two can still drift.
+- Waiting time on `/queue` is measured from the scheduled start, not from
+  check-in: there is no `checked_in_at` column. It reads as "how late are
+  we running against what this patient was told", which is the more
+  useful number, but it is not literally time-in-the-waiting-room.
+- The public booking form's service/dentist lists now come from
+  `config/clinic.php`, but `resources/js/Data/services.js` and
+  `dentists.js` still hold the richer marketing copy for the same
+  things. Related data, not the same data — keep the names in step.
+- `POST /book` remains a weak, rate-limited, noisy patient-existence
+  timing oracle: a hit skips an INSERT that a miss performs. Making it
+  symmetric means deferring patient creation to a worker and changing
+  what the guest is told on submit.
+- Guest bookings still merge into an existing patient record on an email
+  match, so anyone who knows a patient's email can append a `requested`
+  appointment to their history for staff to triage.
+- `paid_on` / `occurred_on` have an upper bound but no lower one, so a
+  payment can still be dated arbitrarily far in the past.
+- There is no audit log of who changed what, which would make several of
+  the Phase 8 findings detectable rather than merely preventable.
 - `Appointment::countBookedForSlot()` and `hasConflict()` do a full table
   scan (no index on `preferred_date`/`preferred_time_of_day`/`status`/
   `start_time`). Fine at demo scale; add a composite index if the table
@@ -271,25 +352,10 @@ aspirational, not a contract. Shipped so far:
   is no longer "tomorrow," so it falls out of the query for good. Same
   risk tolerance as the confirm/decline mail-failure handling (logged,
   not retried).
-- The appointment status set and "open treatment" status set are now
-  duplicated in three places (`WorkspaceController`, `QueueController`,
-  `Patients/Show.jsx`) with only a docblock asserting they stay in sync.
-  A shared const on `Appointment`/`TreatmentPlanItem` is the natural home
-  once a fourth consumer appears.
 - Invoice numbers are derived from the primary key (`INV-` + padded
   id) — not gapless, and they shift if rows are ever hard-deleted. A
   real clinic needing statutory numbering would want a dedicated
   counter.
-- `/invoices` loads every invoice (with items + payments) and filters
-  in PHP — no pagination or search, same as `patients.index`. The
-  money helpers (`balance()` etc.) also re-derive on every read
-  (index, patient tab, dashboard tile, invoice page); no cached
-  column. Fine at demo scale.
-- The "billable treatment-plan status" set
-  (`planned`/`scheduled`/`in_progress`/`completed`) is duplicated in
-  `InvoiceController::linkableTreatmentItems()` and `BillingTab.jsx` —
-  same docblock-sync situation as the appointment/treatment status
-  sets already noted.
 - Every `/reports` query is unbounded and unpaginated; by-provider /
   by-treatment load all matching `invoice_items` for the range, and
   outstanding-A/R re-derives `balance()` by loading every issued invoice
@@ -307,9 +373,6 @@ aspirational, not a contract. Shipped so far:
   every read — the `/inventory` index, the item page, and the
   dashboard tile — with no cached column. Same accepted O(n) pattern
   as invoice balances and `Patient::dueForRecall()`.
-- `/inventory` loads every item (with a movement-sum subquery) and
-  filters/searches in PHP — no pagination, same as `patients.index` /
-  `invoices.index`.
 - Inventory expiry is a single item-level `expiry_date`, not
   per-batch/lot — a clinic holding multiple lots of one item with
   different expiries can't represent that. FEFO batch tracking is a
@@ -340,8 +403,3 @@ aspirational, not a contract. Shipped so far:
   active sessions.
 - Registration remains self-service. A clinic that wants staff accounts
   provisioned centrally has no admin-side "create user" screen.
-- Per-IP login/auth throttling is only meaningful once trusted proxies
-  are configured (a deferred task) — behind an untrusted reverse proxy,
-  every request appears to come from one IP, turning the per-IP
-  throttle buckets into a whole-clinic lockout and a trivial DoS
-  vector.
