@@ -47,7 +47,7 @@ export function StatRow({ columns = 4, className = '', children }) {
         // bordered object with internal rules gives the row an edge
         // without giving every figure its own card.
         <div
-            className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 ${
+            className={`grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 ${
                 COLUMNS[columns] ?? COLUMNS[4]
             } ${className}`}
         >

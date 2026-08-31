@@ -4,6 +4,7 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
+    LabelList,
     ResponsiveContainer,
     Tooltip,
     XAxis,
@@ -15,6 +16,10 @@ import { formatPeso } from '@/Pages/Patients/format';
 const HUE = '#2a54a0';
 const GRID = '#e2e8f0';
 const AXIS = '#94a3b8';
+/* Labels are text, so they take text ink (slate-600) rather than the
+   series colour — a navy number beside a navy bar reads as part of the
+   mark instead of as a value. */
+const VALUE_INK = '#475569';
 
 function fmtCount(n) {
     return Number(n).toLocaleString();
@@ -107,7 +112,20 @@ export function MiniBars({ rows, valueFormat }) {
                     axisLine={false}
                 />
                 <Tooltip formatter={(v) => [fmt(v), 'Total']} cursor={{ fill: '#f1f5f9' }} />
-                <Bar dataKey="value" fill={HUE} radius={[0, 4, 4, 0]} barSize={18} />
+                <Bar dataKey="value" fill={HUE} radius={[0, 4, 4, 0]} barSize={18}>
+                    {/* The 48px right margin was already reserved for these
+                        and nothing filled it: the bars carried rank but no
+                        magnitude, so the only way to learn what one was
+                        worth was to hover it. Few enough categories here
+                        that every bar can be labelled directly. */}
+                    <LabelList
+                        dataKey="value"
+                        position="right"
+                        formatter={fmt}
+                        fill={VALUE_INK}
+                        fontSize={12}
+                    />
+                </Bar>
             </BarChart>
         </ResponsiveContainer>
     );

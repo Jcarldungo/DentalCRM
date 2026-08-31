@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageContainer, PageHeader } from '@/Components/UI/Page';
 import StatTile, { StatRow } from '@/Components/UI/StatTile';
 import { humanise } from '@/Components/UI/statuses';
-import { formatPeso } from '@/Pages/Patients/format';
+import { formatDate, formatPeso } from '@/Pages/Patients/format';
 import RangePicker from './RangePicker';
 import { TrendChart, MiniBars } from './charts';
 import { Card, NoShowList, ProviderTable, RateBar, Section } from './components';
@@ -30,7 +30,7 @@ export default function Index({ meta, revenue, appointments, patients }) {
                             <StatTile
                                 label="Outstanding"
                                 value={formatPeso(revenue.outstanding.total)}
-                                sub={`${revenue.outstanding.count} open invoice${revenue.outstanding.count === 1 ? '' : 's'} · as of ${revenue.outstanding.as_of}`}
+                                sub={`${revenue.outstanding.count} open invoice${revenue.outstanding.count === 1 ? '' : 's'} · as of ${formatDate(revenue.outstanding.as_of)}`}
                             />
                         </StatRow>
 
