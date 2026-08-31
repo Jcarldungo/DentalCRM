@@ -50,6 +50,7 @@ export default function Index({ patients, providers, requests }) {
     const calendarRef = useRef(null);
     const [modal, setModal] = useState(null);
     const [declining, setDeclining] = useState(null);
+    const [feedError, setFeedError] = useState(null);
     const { data, setData, post, patch, transform, processing, errors, reset, clearErrors } = useForm({
         patient_id: '',
         provider_id: '',
@@ -225,6 +226,21 @@ export default function Index({ patients, providers, requests }) {
                 )}
 
                 <Card className="overflow-hidden p-3 sm:p-4">
+                    {feedError && (
+                        <div
+                            role="alert"
+                            className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+                        >
+                            <span>
+                                The calendar could not load appointments ({feedError}). What is shown may be
+                                out of date.
+                            </span>
+                            <Button variant="secondary" size="sm" onClick={refetch}>
+                                Retry
+                            </Button>
+                        </div>
+                    )}
+
                     <FullCalendar
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -256,18 +272,32 @@ export default function Index({ patients, providers, requests }) {
                             info.el.style.borderColor = colour.border;
                         }}
                         events={(fetchInfo, success, failure) => {
+                            // Accept: application/json so a validation
+                            // failure comes back as 422 JSON rather than a
+                            // redirect to an HTML page, which would reach
+                            // this callback as an unparseable body.
                             fetch(
                                 route('appointments.events', {
                                     start: fetchInfo.startStr,
                                     end: fetchInfo.endStr,
                                 }),
+                                { headers: { Accept: 'application/json' } },
                             )
                                 .then((response) => {
-                                    if (!response.ok) throw new Error(response.statusText);
+                                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                                     return response.json();
                                 })
-                                .then(success)
-                                .catch(failure);
+                                .then((events) => {
+                                    setFeedError(null);
+                                    success(events);
+                                })
+                                .catch((error) => {
+                                    // Without this the calendar simply
+                                    // renders empty, which is
+                                    // indistinguishable from a clear day.
+                                    setFeedError(error.message);
+                                    failure(error);
+                                });
                         }}
                     />
 
