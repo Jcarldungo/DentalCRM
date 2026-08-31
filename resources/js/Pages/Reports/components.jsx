@@ -9,19 +9,9 @@ export function Section({ title, children }) {
     );
 }
 
-export function StatTile({ label, value, sub }) {
-    return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-            <div className="tabular mt-1 text-2xl font-semibold text-slate-900">{value}</div>
-            {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
-        </div>
-    );
-}
-
 export function Card({ title, note, children }) {
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
             <div className="mb-2 flex items-baseline justify-between">
                 <h3 className="text-sm font-medium text-slate-700">{title}</h3>
                 {note && <span className="text-xs text-slate-400">{note}</span>}

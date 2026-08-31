@@ -30,7 +30,7 @@ const SIZES = {
 };
 
 const BASE =
-    'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg font-medium transition-colors duration-100 ' +
+    'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-xl font-medium transition-colors duration-100 ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ' +
     'disabled:cursor-not-allowed disabled:opacity-50';
 

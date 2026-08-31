@@ -46,25 +46,36 @@ database must exist before `php artisan test` will work.
   must not leak into the internal app, or vice versa. The staff app is
   cool `slate` neutrals plus the custom `brand` scale in
   `tailwind.config.js`; the public site is warm `stone` plus `teal-700`.
+  `tailwind.config.js` also carries the named `sidebar-*` roles
+  (`DEFAULT`/`raised`/`border`/`text`/`muted`) for the one dark surface in
+  the app, and `shadow-card` for the one card elevation. Reach for those
+  rather than spelling out a near-black hex or a bespoke shadow.
 - **Staff UI components** live in `resources/js/Components/UI/` and are
   the only place their concern is implemented. Use them rather than
   hand-rolling: `Button`, `Card`, `Modal`/`ConfirmDialog` (Headless UI —
   never hand-roll an overlay, you lose the focus trap), `Field`/
   `SelectField`/`TextareaField` (they generate the `id` and wire
   `htmlFor`, which is what keeps every input named), `Tabs`, `Toast`,
-  `StatusBadge`, and `Page.jsx`'s `PageContainer`/`PageHeader`/
-  `EmptyState`/`DetailItem`.
+  `StatusBadge`, `StatTile` (the only tinted surface in the app — a
+  headline number, tone chosen for what the number *means*, using the
+  same tone names as `statuses.js`), and `Page.jsx`'s `PageContainer`/
+  `PageHeader`/`EmptyState`/`DetailItem`.
   `Components/UI/statuses.js` is the single source for every status →
   label + tone mapping in the staff app. A page must not invent its own
   colour for a status.
   `PageContainer` is the one content width and the one padding rule; a
   page that writes its own `max-w-*`/`px-*` is a bug waiting to be a
   responsive one.
-- **The staff shell is a sidebar**, grouped Today / Records / Practice,
-  collapsing to an off-canvas drawer below `lg`. Pages pass
-  `title` and optional `actions`/`navBadges` to `AuthenticatedLayout`,
-  not a `header` element. A top-bar `actions` button is hidden from `lg`
-  up, where the page's own `PageHeader` carries it.
+- **The staff shell is a dark sidebar**, grouped Today / Records /
+  Practice. It is the app's only dark surface and its only chrome. From
+  `lg` up it collapses to a 64px icon rail, and the choice persists in
+  `localStorage` under `staff.sidebar.collapsed`; below `lg` the same nav
+  is an off-canvas drawer. One markup path serves all three states.
+  Pages pass `title` and optional `breadcrumbs`/`actions`/`navBadges` to
+  `AuthenticatedLayout`, not a `header` element. `breadcrumbs` is a
+  `[{ label, href? }]` trail rendered after a Home crumb in the top bar;
+  omit it and the trail is just `title`. A top-bar `actions` button is
+  hidden from `lg` up, where the page's own `PageHeader` carries it.
 - **Flash messages**: `HandleInertiaRequests` shares a fixed
   `flash.success` / `flash.error` shape that `Toast` renders. A
   controller action that changes something should say so with

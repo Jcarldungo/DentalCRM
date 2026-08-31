@@ -12,7 +12,7 @@ import { useId } from 'react';
  */
 
 const CONTROL =
-    'block w-full rounded-lg border-slate-300 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ' +
+    'block w-full rounded-xl border-slate-300 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ' +
     'focus:border-brand-500 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-500';
 
 const CONTROL_INVALID = 'border-rose-400 focus:border-rose-500 focus:ring-rose-500';

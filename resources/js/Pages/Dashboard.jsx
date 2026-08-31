@@ -1,5 +1,6 @@
 import Card, { CardBody, CardHeader } from '@/Components/UI/Card';
 import { EmptyState, PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatTile from '@/Components/UI/StatTile';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import {
@@ -16,11 +17,18 @@ import {
 } from 'lucide-react';
 import { formatPeso } from './Patients/format';
 
+/*
+ * The tones are the ones statuses.js already gives these four statuses,
+ * not a decorative sweep of pastels — a waiting patient is violet in the
+ * tile for the same reason the pill on the queue board is violet. Picking
+ * prettier colours here would be the exact drift statuses.js exists to
+ * prevent.
+ */
 const TILES = [
-    { key: 'scheduled', label: 'Scheduled', icon: CalendarClock, tone: 'text-brand-600 bg-brand-50' },
-    { key: 'waiting', label: 'Waiting', icon: Clock, tone: 'text-violet-600 bg-violet-50' },
-    { key: 'in_treatment', label: 'In treatment', icon: Stethoscope, tone: 'text-emerald-600 bg-emerald-50' },
-    { key: 'completed', label: 'Completed', icon: CheckCircle2, tone: 'text-slate-500 bg-slate-100' },
+    { key: 'scheduled', label: 'Scheduled', icon: CalendarClock, tone: 'info' },
+    { key: 'waiting', label: 'Waiting', icon: Clock, tone: 'progress' },
+    { key: 'in_treatment', label: 'In treatment', icon: Stethoscope, tone: 'success' },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2, tone: 'neutral' },
 ];
 
 function formatTime(iso) {
@@ -41,26 +49,6 @@ function pluralise(count, word) {
     return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
-/** A count that links into the board it counts — the number is the entry point. */
-function TodayTile({ tile, value }) {
-    const Icon = tile.icon;
-
-    return (
-        <Link
-            href={route('queue.index')}
-            className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-        >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tile.tone}`}>
-                <Icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-                <span className="tabular block text-2xl font-semibold leading-none text-slate-900">{value}</span>
-                <span className="mt-1 block truncate text-xs font-medium text-slate-500">{tile.label}</span>
-            </span>
-        </Link>
-    );
-}
-
 export default function Dashboard({ today, requests, dueForRecall, outstanding, inventory }) {
     return (
         <AuthenticatedLayout title="Dashboard" navBadges={{ 'appointments.index': requests.count }}>
@@ -72,9 +60,16 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
                     description={formatDay(today.date)}
                 />
 
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
                     {TILES.map((tile) => (
-                        <TodayTile key={tile.key} tile={tile} value={today[tile.key]} />
+                        <StatTile
+                            key={tile.key}
+                            label={tile.label}
+                            value={today[tile.key]}
+                            icon={tile.icon}
+                            tone={tile.tone}
+                            href={route('queue.index')}
+                        />
                     ))}
                 </div>
 
@@ -82,6 +77,7 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
                     <div className="space-y-5 lg:col-span-2">
                         <Card>
                             <CardHeader
+                                icon={Inbox}
                                 title="Appointment requests"
                                 description="Submitted from the public site — a guest is waiting on each of these."
                                 actions={
@@ -141,6 +137,7 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
 
                         <Card>
                             <CardHeader
+                                icon={Users}
                                 title="Due for recall"
                                 description="Patients past their cleaning interval."
                             />
@@ -179,7 +176,7 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
 
                     <div className="space-y-5">
                         <Card>
-                            <CardHeader title="Next appointment" />
+                            <CardHeader icon={CalendarClock} title="Next appointment" />
                             <CardBody>
                                 {today.next ? (
                                     <Link
@@ -207,7 +204,7 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
 
                         <Link
                             href={route('invoices.index', { status: 'outstanding' })}
-                            className="block rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:p-5"
+                            className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-card transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:p-5"
                         >
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                                 <Receipt className="h-4 w-4 text-slate-400" aria-hidden="true" />
@@ -229,7 +226,7 @@ export default function Dashboard({ today, requests, dueForRecall, outstanding, 
 
                         <Link
                             href={route('inventory.index', { filter: 'low' })}
-                            className="block rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:p-5"
+                            className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-card transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:p-5"
                         >
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                                 <Boxes className="h-4 w-4 text-slate-400" aria-hidden="true" />

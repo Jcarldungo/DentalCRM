@@ -195,7 +195,7 @@ class DesignSystemTest extends TestCase
     {
         foreach ([
             'Button', 'Card', 'Field', 'Modal', 'Page', 'Pagination',
-            'StatusBadge', 'Tabs', 'Toast', 'ClinicMark',
+            'StatTile', 'StatusBadge', 'Tabs', 'Toast', 'ClinicMark',
         ] as $component) {
             $this->assertFileExists(
                 base_path("resources/js/Components/UI/{$component}.jsx"),

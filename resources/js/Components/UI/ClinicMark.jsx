@@ -6,16 +6,41 @@
  * prop, so it is swappable with the rest of clinic identity rather than
  * being another place a real customer's name would have to be found and
  * edited.
+ *
+ * `onDark` is the sidebar's variant. The glyph tile inverts to white on
+ * navy rather than staying `brand-600`, which at that size on the dark
+ * rail reads as a smudge; the name goes white and the optional subtitle
+ * takes the muted sidebar text. One component, so the mark cannot drift
+ * between the two surfaces it appears on.
  */
-export default function ClinicMark({ name, compact = false }) {
+export default function ClinicMark({ name, subtitle, compact = false, onDark = false }) {
     return (
         <span className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white">
-                <ToothGlyph className="h-[18px] w-[18px]" />
+            <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                    onDark ? 'bg-white text-sidebar' : 'bg-brand-600 text-white'
+                }`}
+            >
+                <ToothGlyph className="h-5 w-5" />
             </span>
             {!compact && (
-                <span className="min-w-0 truncate text-sm font-semibold leading-tight text-slate-900">
-                    {name}
+                <span className="min-w-0">
+                    <span
+                        className={`block truncate text-sm font-semibold leading-tight ${
+                            onDark ? 'text-white' : 'text-slate-900'
+                        }`}
+                    >
+                        {name}
+                    </span>
+                    {subtitle && (
+                        <span
+                            className={`block truncate text-[11px] leading-tight ${
+                                onDark ? 'text-sidebar-muted' : 'text-slate-500'
+                            }`}
+                        >
+                            {subtitle}
+                        </span>
+                    )}
                 </span>
             )}
         </span>

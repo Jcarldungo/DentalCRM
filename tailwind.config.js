@@ -39,11 +39,46 @@ export default {
                     900: '#20355b',
                     950: '#15223b',
                 },
+
+                /*
+                 * The sidebar is the one dark surface in the staff app, so
+                 * its five values live here as named roles rather than as a
+                 * numeric scale — there is no "sidebar-300" to reach for,
+                 * only a background, a raised state, a divider, and two
+                 * text weights. Naming them stops the shell from spelling
+                 * out near-black hexes inline, and stops a second dark
+                 * surface inventing its own.
+                 *
+                 * Cooled toward the brand navy rather than pure grey, so
+                 * the rail and the brand mark read as the same family.
+                 *
+                 * `text` is 8.3:1 on `DEFAULT` and `muted` is 4.7:1 — the
+                 * latter carries the 11px uppercase group labels, which is
+                 * text and so has to clear 4.5:1. The obvious darker grey
+                 * lands at 4.0:1 and would have quietly failed.
+                 */
+                sidebar: {
+                    DEFAULT: '#131a2a',
+                    raised: '#1e273b',
+                    border: '#2a3347',
+                    text: '#aab4c8',
+                    muted: '#7b8699',
+                },
             },
 
             maxWidth: {
                 /* The one staff-app content width. */
                 shell: '88rem',
+            },
+
+            boxShadow: {
+                /*
+                 * The card elevation. Two very shallow layers rather than
+                 * one deep one: cards sit directly on `slate-50` and are
+                 * often stacked a few pixels apart, where a single soft
+                 * shadow turns into a grey haze between them.
+                 */
+                card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.05)',
             },
 
             keyframes: {

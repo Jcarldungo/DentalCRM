@@ -1,10 +1,11 @@
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageContainer, PageHeader } from '@/Components/UI/Page';
+import StatTile from '@/Components/UI/StatTile';
 import { formatPeso } from '@/Pages/Patients/format';
 import RangePicker from './RangePicker';
 import { TrendChart, MiniBars } from './charts';
-import { Card, NoShowList, ProviderTable, RateBar, Section, StatTile } from './components';
+import { Card, NoShowList, ProviderTable, RateBar, Section } from './components';
 
 function pct(n) {
     return `${Math.round(n * 1000) / 10}%`;
