@@ -152,7 +152,7 @@ export default function Show({ item }) {
                                 <table className="w-full min-w-[40rem] text-sm">
                                     <caption className="sr-only">Stock movements for {item.name}</caption>
                                     <thead>
-                                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                        <tr className="border-b border-slate-200 text-left">
                                             <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
                                                 Date
                                             </th>

@@ -1,17 +1,23 @@
+import { Section as PageSection } from '@/Components/UI/Page';
 import { Link } from '@inertiajs/react';
 
+/**
+ * The shared Section, plus the vertical rhythm this page's stacked
+ * charts need. Reports used to draw its own heading one size down with
+ * no rule, which made the report look like a different application from
+ * the dashboard next door.
+ */
 export function Section({ title, children }) {
     return (
-        <section className="space-y-4">
-            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-            {children}
-        </section>
+        <PageSection title={title}>
+            <div className="space-y-4">{children}</div>
+        </PageSection>
     );
 }
 
 export function Card({ title, note, children }) {
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="mb-2 flex items-baseline justify-between">
                 <h3 className="text-sm font-medium text-slate-700">{title}</h3>
                 {note && <span className="text-xs text-slate-400">{note}</span>}

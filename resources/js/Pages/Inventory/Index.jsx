@@ -147,26 +147,26 @@ export default function Index({ items, filters }) {
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[44rem] text-sm">
                                 <thead>
-                                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600 sm:px-5">
+                                    <tr className="border-b border-slate-200 text-left">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                                             Item
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Category
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 text-right font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             On hand
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 text-right font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Reorder at
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Status
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Expiry
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600 sm:px-5">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                                             Supplier
                                         </th>
                                     </tr>

@@ -131,22 +131,22 @@ export default function Index({ invoices, summary, filters }) {
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[40rem] text-sm">
                                 <thead>
-                                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600 sm:px-5">
+                                    <tr className="border-b border-slate-200 text-left">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                                             Invoice
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Patient
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Date
                                         </th>
-                                        <th scope="col" className="px-4 py-2.5 text-right font-medium text-slate-600">
+                                        <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             Total
                                         </th>
                                         <th
                                             scope="col"
-                                            className="px-4 py-2.5 text-right font-medium text-slate-600 sm:px-5"
+                                            className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 sm:px-5"
                                         >
                                             Balance
                                         </th>

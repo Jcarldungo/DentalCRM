@@ -199,7 +199,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                             <table className="w-full min-w-[30rem] text-sm">
                                 <caption className="sr-only">Invoice line items</caption>
                                 <thead>
-                                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                    <tr className="border-b border-slate-200 text-left">
                                         <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
                                             Description
                                         </th>
@@ -283,7 +283,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                                 <table className="w-full min-w-[32rem] text-sm">
                                     <caption className="sr-only">Payments recorded against this invoice</caption>
                                     <thead>
-                                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                                        <tr className="border-b border-slate-200 text-left">
                                             <th scope="col" className="px-4 py-2 font-medium text-slate-600 sm:px-5">
                                                 Date
                                             </th>
