@@ -173,7 +173,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                 {isVoid && (
                     <div
                         role="status"
-                        className="mb-5 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
+                        className="mb-5 rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
                     >
                         This invoice has been voided. It stays on the record but is excluded from balances
                         and reports.
@@ -182,7 +182,7 @@ export default function Show({ invoice, treatmentPlanItems }) {
                 {invoice.is_paid && (
                     <div
                         role="status"
-                        className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+                        className="mb-5 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
                     >
                         <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
                         Paid in full.

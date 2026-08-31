@@ -59,7 +59,7 @@ export default function Show({ item }) {
                 {!item.active && (
                     <div
                         role="status"
-                        className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
+                        className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-600"
                     >
                         <span>
                             This item is archived. It is hidden from the default list and dashboard alerts, and

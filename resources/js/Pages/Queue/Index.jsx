@@ -127,7 +127,7 @@ function QueueCard({ appointment, column, now, children }) {
 function Column({ column, appointments, now, children }) {
     return (
         <section
-            className={`flex min-w-0 flex-col rounded-xl ${
+            className={`flex min-w-0 flex-col rounded-2xl ${
                 column.emphasis ? 'bg-emerald-50/50 p-2 ring-1 ring-emerald-200' : ''
             }`}
             aria-label={column.title}
@@ -141,7 +141,7 @@ function Column({ column, appointments, now, children }) {
             </header>
 
             {appointments.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
+                <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
                     {column.hint}
                 </p>
             ) : (

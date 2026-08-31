@@ -26,3 +26,125 @@
         font-variant-numeric: tabular-nums;
     }
 }
+
+/*
+ * FullCalendar, wearing the staff app's clothes.
+ *
+ * The calendar is the one third-party surface in the app, and it inherits
+ * nothing: it injects its own stylesheet at runtime, so while every other
+ * page followed the design system it kept rendering the library's default
+ * chrome — its own greys, its own capitalised pill buttons, its own blue.
+ * Inside a card on a dark-railed app that read as a widget someone had
+ * embedded rather than part of the page.
+ *
+ * Almost all of it goes through FullCalendar's own `--fc-*` custom
+ * properties, which is why this is a colour map and not a pile of
+ * `!important`. Only the button shape and the toolbar's typography need
+ * real rules, and `.fc .fc-*` is enough specificity to win without them.
+ *
+ * Event *fills* are not set here: those are per-status and live in
+ * Appointments/Index.jsx's EVENT_COLOURS, mirroring statuses.js.
+ *
+ * Deliberately NOT in `@layer components`: Tailwind purges a layer's
+ * rules when their selectors never appear in the content globs, and no
+ * `fc-*` class is ever written in the JSX — FullCalendar emits them at
+ * runtime. In a layer this whole block compiled to nothing.
+ */
+.fc {
+    --fc-border-color: theme('colors.slate.200');
+    --fc-page-bg-color: theme('colors.white');
+    --fc-neutral-bg-color: theme('colors.slate.50');
+    --fc-small-font-size: 0.75rem;
+
+    /* Today and the drag-selection wash, both tinted brand rather than
+       FullCalendar's yellow — the only two places the grid carries
+       colour that is not an event. */
+    --fc-today-bg-color: theme('colors.brand.50');
+    --fc-highlight-color: theme('colors.brand.100 / 60%');
+
+    /* The now-line is the one thing on the grid that should catch the
+       eye faster than an appointment. */
+    --fc-now-indicator-color: theme('colors.rose.600');
+
+    --fc-button-bg-color: theme('colors.white');
+    --fc-button-border-color: theme('colors.slate.300');
+    --fc-button-text-color: theme('colors.slate.700');
+    --fc-button-hover-bg-color: theme('colors.slate.50');
+    --fc-button-hover-border-color: theme('colors.slate.300');
+    --fc-button-active-bg-color: theme('colors.brand.600');
+    --fc-button-active-border-color: theme('colors.brand.600');
+}
+
+/* The same shape and hit target as Components/UI/Button's `sm`. */
+.fc .fc-button {
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: theme('borderRadius.xl');
+    font-size: theme('fontSize.sm[0]');
+    font-weight: 500;
+    text-transform: none;
+    box-shadow: theme('boxShadow.sm');
+    transition: background-color 100ms, border-color 100ms;
+}
+
+.fc .fc-button:focus,
+.fc .fc-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px theme('colors.white'), 0 0 0 4px theme('colors.brand.500');
+}
+
+.fc .fc-button-primary:disabled {
+    opacity: 0.5;
+}
+
+/* FullCalendar's icon buttons are square; the padding above stretches them. */
+.fc .fc-prev-button,
+.fc .fc-next-button {
+    padding: 0 0.5rem;
+}
+
+.fc .fc-toolbar-title {
+    font-size: theme('fontSize.base[0]');
+    font-weight: 600;
+    color: theme('colors.slate.900');
+}
+
+/* Below sm the three toolbar groups overflowed rather than stacking. */
+.fc .fc-toolbar.fc-header-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Column headers, day numbers and the time axis are labels, not
+   content — they were competing with the appointments. */
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number {
+    padding: 0.375rem 0.5rem;
+    font-size: theme('fontSize.xs[0]');
+    font-weight: 500;
+    color: theme('colors.slate.500');
+}
+
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label-cushion {
+    font-size: theme('fontSize.xs[0]');
+    color: theme('colors.slate.400');
+}
+
+.fc .fc-day-today .fc-col-header-cell-cushion,
+.fc .fc-day-today .fc-daygrid-day-number {
+    font-weight: 600;
+    color: theme('colors.brand.700');
+}
+
+.fc .fc-event {
+    border-radius: theme('borderRadius.md');
+    padding: 1px 2px;
+    font-size: theme('fontSize.xs[0]');
+}
+
+.fc .fc-event:focus-visible {
+    outline: 2px solid theme('colors.brand.500');
+    outline-offset: 1px;
+}
