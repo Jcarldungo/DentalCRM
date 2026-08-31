@@ -3,13 +3,16 @@
 namespace Database\Seeders;
 
 use App\Models\Appointment;
+use App\Models\DentalRecord;
 use App\Models\InventoryItem;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Models\Prescription;
 use App\Models\Provider;
 use App\Models\StockMovement;
+use App\Models\ToothCondition;
 use App\Models\TreatmentPlanItem;
 use App\Models\User;
 use Carbon\Carbon;
@@ -207,5 +210,144 @@ class DemoSeeder extends Seeder
 
         $inventory->get(2)?->update(['expiry_date' => Carbon::now()->addDays(15)->toDateString()]);
         $inventory->get(3)?->update(['active' => false]);
+
+        // --- Today's board: a clinic mid-morning, so /queue, the dashboard's
+        //     today strip, and /workspace are populated on a fresh seed.
+        //     Additive; nothing above changes.
+        $boardPatients = $allPatients->shuffle()->take(5)->values();
+        $boardStatuses = ['scheduled', 'scheduled', 'checked_in', 'in_treatment', 'completed'];
+
+        foreach ($boardStatuses as $index => $status) {
+            $start = Carbon::today()->setTime(9 + $index, [0, 30][$index % 2]);
+
+            Appointment::factory()->create([
+                'patient_id' => $boardPatients[$index % $boardPatients->count()]->id,
+                'provider_id' => $providers->random()->id,
+                'type' => $types[array_rand($types)],
+                'status' => $status,
+                'start_time' => $start,
+                'end_time' => $start->clone()->addMinutes(45),
+            ]);
+        }
+
+        // A pending public request, so the dashboard tile and the
+        // confirm/decline flow on /appointments have something to act on.
+        Appointment::factory()->create([
+            'patient_id' => $allPatients->random()->id,
+            'provider_id' => null,
+            'start_time' => null,
+            'end_time' => null,
+            'type' => null,
+            'status' => 'requested',
+            'service_interest' => 'Dental Cleaning',
+            'dentist_preference' => 'No preference',
+            'preferred_date' => Carbon::now()->addDays(3)->toDateString(),
+            'preferred_time_of_day' => 'morning',
+            'notes' => 'Some sensitivity on the upper left with cold drinks.',
+        ]);
+
+        // --- Clinical fixtures. Without these a fresh seed cannot show the
+        //     product's centrepiece: the records tab, the odontogram, and
+        //     the prescriptions tab were all empty on /patients/{patient}.
+        $chartedPatients = $allPatients->shuffle()->take(4)->values();
+
+        foreach ($chartedPatients as $index => $patient) {
+            $provider = $providers->random();
+            $lastVisit = $patient->appointments()
+                ->where('status', 'completed')
+                ->orderByDesc('start_time')
+                ->first();
+
+            foreach ([
+                ['consultation',
+                    'Generalised mild plaque accumulation. Gingival margins inflamed on the lower anteriors.',
+                    'Chronic marginal gingivitis.',
+                    null,
+                    'Advised interdental brushes. Recall in six months.'],
+                ['procedure',
+                    'Occlusal caries on tooth 30 confirmed radiographically.',
+                    'Dental caries, tooth 30, occlusal surface.',
+                    'Composite restoration, tooth 30. Local anaesthesia, one carpule articaine.',
+                    'Patient tolerated the procedure well. No post-operative sensitivity reported.'],
+                ['follow_up',
+                    'Restoration on tooth 30 intact, margins sound.',
+                    null,
+                    null,
+                    'Reviewed brushing technique.'],
+            ] as [$type, $examination, $diagnosis, $procedure, $notes]) {
+                $record = new DentalRecord([
+                    'patient_id' => $patient->id,
+                    'provider_id' => $provider->id,
+                    'appointment_id' => $lastVisit?->id,
+                    'type' => $type,
+                    'examination' => $examination,
+                    'diagnosis' => $diagnosis,
+                    'procedure' => $procedure,
+                    'notes' => $notes,
+                ]);
+                $record->created_by = $staff->id;
+                $record->save();
+            }
+
+            // A plausible mouth: third molars out, a couple of restorations,
+            // one lesion to treat, and — on one patient — a tooth charted
+            // twice, so the chart's per-tooth history has something to show.
+            $chart = [
+                [1, 'missing', 'Extracted 2018.'],
+                [16, 'missing', null],
+                [17, 'missing', null],
+                [32, 'missing', null],
+                [3, 'filling', 'Amalgam, placed elsewhere.'],
+                [14, 'crown', 'PFM crown, 2019.'],
+                [19, 'root_canal', 'RCT complete, crown pending.'],
+                [30, 'caries', 'Occlusal, to restore.'],
+                [8, 'healthy', null],
+            ];
+
+            if ($index === 0) {
+                $chart[] = [30, 'filling', 'Composite placed. Supersedes the caries entry above.'];
+            }
+
+            foreach ($chart as [$toothNumber, $condition, $toothNotes]) {
+                $tooth = new ToothCondition([
+                    'patient_id' => $patient->id,
+                    'provider_id' => $provider->id,
+                    'tooth_number' => $toothNumber,
+                    'condition' => $condition,
+                    'notes' => $toothNotes,
+                ]);
+                $tooth->created_by = $staff->id;
+                $tooth->save();
+            }
+
+            foreach ([
+                ['Amoxicillin', '500 mg', 'Three times daily', '7 days', '21 capsules',
+                    'Take with food. Complete the full course.', 'active'],
+                ['Ibuprofen', '400 mg', 'Every 6 hours as needed', '5 days', '20 tablets',
+                    'Do not exceed 1600 mg in 24 hours.', 'active'],
+                ['Chlorhexidine 0.12% rinse', '15 mL', 'Twice daily', '14 days', '1 bottle',
+                    'Rinse for 30 seconds. Do not swallow.', 'discontinued'],
+            ] as [$medication, $dosage, $frequency, $duration, $quantity, $instructions, $status]) {
+                $rx = new Prescription([
+                    'patient_id' => $patient->id,
+                    'provider_id' => $provider->id,
+                    'medication' => $medication,
+                    'dosage' => $dosage,
+                    'frequency' => $frequency,
+                    'duration' => $duration,
+                    'quantity' => $quantity,
+                    'instructions' => $instructions,
+                ]);
+                $rx->created_by = $staff->id;
+                $rx->status = $status;
+
+                if ($status === 'discontinued') {
+                    $rx->discontinued_at = Carbon::now()->subDays(3);
+                    $rx->discontinued_reason = 'Course completed early; symptoms resolved.';
+                }
+
+                $rx->save();
+            }
+        }
     }
 }
